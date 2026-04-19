@@ -1,0 +1,174 @@
+import React, { useEffect, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import ScreenContainer from "../components/ScreenContainer";
+import SectionCard from "../components/SectionCard";
+import InfoCard from "../components/InfoCard";
+import FormInput from "../components/FormInput";
+import PrimaryButton from "../components/PrimaryButton";
+import RoleBadge from "../components/RoleBadge";
+import { theme } from "../constants/theme";
+import { getCoursesForRole, getRecentReports, getRoleSummary, saveCourse, submitRating } from "../services/firestore";
+import { roleLabels } from "../utils/roles";
+
+const initialCourse = {
+  courseName: "",
+  courseCode: "",
+  className: "",
+  stream: "",
+  assignedLecturer: "",
+  lectureTime: "",
+  venue: ""
+};
+
+export default function ProgramLeaderScreen({ profile, user, onLogout }) {
+  const [summary, setSummary] = useState({
+    activeCourses: 0,
+    reportsSubmitted: 0,
+    averageAttendance: 0,
+    averageRating: 0
+  });
+  const [courseForm, setCourseForm] = useState(initialCourse);
+  const [courses, setCourses] = useState([]);
+  const [reports, setReports] = useState([]);
+  const [rating, setRating] = useState({ className: "", score: "", feedback: "" });
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const loadDashboard = async () => {
+    setLoading(true);
+    try {
+      const [summaryData, coursesData, reportsData] = await Promise.all([
+        getRoleSummary(user.uid, profile.role),
+        getCoursesForRole(profile.role, profile.stream),
+        getRecentReports(8)
+      ]);
+      setSummary(summaryData);
+      setCourses(coursesData);
+      setReports(reportsData);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDashboard().catch(() => null);
+  }, [profile.role, profile.stream, user.uid]);
+
+  const saveCourseData = async () => {
+    await saveCourse({
+      ...courseForm,
+      ownerId: user.uid,
+      facultyName: profile.facultyName,
+      stream: courseForm.stream || profile.stream
+    });
+    setCourseForm(initialCourse);
+    setMessage("Course assigned successfully.");
+    await loadDashboard();
+  };
+
+  const saveRating = async () => {
+    await submitRating({
+      ...rating,
+      ownerId: user.uid,
+      role: profile.role,
+      facultyName: profile.facultyName
+    });
+    setRating({ className: "", score: "", feedback: "" });
+    setMessage("Program rating saved.");
+    await loadDashboard();
+  };
+
+  return (
+    <ScreenContainer>
+      <SectionCard title="Program Leader Dashboard" subtitle={profile.facultyName}>
+        <RoleBadge label={roleLabels[profile.role]} />
+        <Text style={styles.copy}>
+          Add courses, assign lecturer modules, view reports from Principal Lecturers, monitor classes, and review lectures.
+        </Text>
+        <PrimaryButton label={loading ? "Refreshing..." : "Refresh Dashboard"} onPress={loadDashboard} variant="secondary" />
+        <PrimaryButton label="Logout" onPress={onLogout} variant="secondary" />
+      </SectionCard>
+
+      <View style={styles.row}>
+        <InfoCard label="Managed Courses" value={courses.length} tone="highlight" />
+        <InfoCard label="Reports Visible" value={reports.length} />
+      </View>
+      <View style={styles.row}>
+        <InfoCard label="Attendance Avg" value={summary.averageAttendance} />
+        <InfoCard label="Rating Avg" value={summary.averageRating} />
+      </View>
+
+      <SectionCard title="Courses and Lecturer Assignment">
+        <FormInput label="Course Name" value={courseForm.courseName} onChangeText={(value) => setCourseForm((current) => ({ ...current, courseName: value }))} />
+        <FormInput label="Course Code" value={courseForm.courseCode} onChangeText={(value) => setCourseForm((current) => ({ ...current, courseCode: value }))} />
+        <FormInput label="Class Name" value={courseForm.className} onChangeText={(value) => setCourseForm((current) => ({ ...current, className: value }))} />
+        <FormInput label="Stream" value={courseForm.stream} onChangeText={(value) => setCourseForm((current) => ({ ...current, stream: value }))} />
+        <FormInput label="Assign Lecturer" value={courseForm.assignedLecturer} onChangeText={(value) => setCourseForm((current) => ({ ...current, assignedLecturer: value }))} />
+        <FormInput label="Lecture Time" value={courseForm.lectureTime} onChangeText={(value) => setCourseForm((current) => ({ ...current, lectureTime: value }))} />
+        <FormInput label="Venue" value={courseForm.venue} onChangeText={(value) => setCourseForm((current) => ({ ...current, venue: value }))} />
+        <PrimaryButton label="Save Course" onPress={saveCourseData} />
+      </SectionCard>
+
+      <SectionCard title="Classes and Lectures">
+        {courses.length ? courses.map((course) => (
+          <View key={course.id} style={styles.listItem}>
+            <Text style={styles.listTitle}>{course.courseName} ({course.courseCode})</Text>
+            <Text style={styles.listText}>Assigned Lecturer: {course.assignedLecturer || "Not assigned"}</Text>
+            <Text style={styles.listText}>Lecture Time: {course.lectureTime || "TBD"}</Text>
+            <Text style={styles.listText}>Venue: {course.venue || "TBD"}</Text>
+          </View>
+        )) : <Text style={styles.copy}>No courses have been created yet.</Text>}
+      </SectionCard>
+
+      <SectionCard title="Reports From PRL">
+        {reports.length ? reports.map((report) => (
+          <View key={report.id} style={styles.listItem}>
+            <Text style={styles.listTitle}>{report.courseName} - {report.className}</Text>
+            <Text style={styles.listText}>Week: {report.weekOfReporting}</Text>
+            <Text style={styles.listText}>Lecture Time: {report.scheduledLectureTime || "TBD"}</Text>
+            <Text style={styles.listText}>Recommendations: {report.recommendations}</Text>
+          </View>
+        )) : <Text style={styles.copy}>No reports have been submitted yet.</Text>}
+      </SectionCard>
+
+      <SectionCard title="Monitoring and Rating">
+        <FormInput label="Class / Course Name" value={rating.className} onChangeText={(value) => setRating((current) => ({ ...current, className: value }))} />
+        <FormInput label="Score (1-5)" value={rating.score} keyboardType="numeric" onChangeText={(value) => setRating((current) => ({ ...current, score: value }))} />
+        <FormInput label="Review Notes" value={rating.feedback} multiline onChangeText={(value) => setRating((current) => ({ ...current, feedback: value }))} />
+        <PrimaryButton label="Save Rating" onPress={saveRating} />
+        {message ? <Text style={styles.success}>{message}</Text> : null}
+      </SectionCard>
+    </ScreenContainer>
+  );
+}
+
+const styles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing.sm
+  },
+  copy: {
+    color: theme.colors.text,
+    lineHeight: 22
+  },
+  listItem: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.sm,
+    padding: theme.spacing.sm,
+    backgroundColor: theme.colors.white,
+    gap: 4
+  },
+  listTitle: {
+    fontWeight: "700",
+    color: theme.colors.primaryDark
+  },
+  listText: {
+    color: theme.colors.text
+  },
+  success: {
+    color: theme.colors.success,
+    fontWeight: "700"
+  }
+});

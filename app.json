@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "LUCT Faculty Reporting",
+    "slug": "luct-faculty-reporting",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6b365161-639d-41e7-ba90-a3023fd3e509"
+      }
+    }
+  }
+}
