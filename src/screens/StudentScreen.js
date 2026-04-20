@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import SectionCard from "../components/SectionCard";
@@ -9,13 +9,17 @@ import RoleBadge from "../components/RoleBadge";
 import { theme } from "../constants/theme";
 import {
   getCoursesForRole,
-  getRecentAttendanceByOwner,
-  getRecentRatingsByOwner,
-  submitAttendance,
-  submitRating,
-  getRoleSummary
+  getRecentAttendance,
+  getRecentRatings,
+  getRoleSummary,
+  submitRating
 } from "../services/firestore";
+import { exportRowsToExcel } from "../utils/reportExport";
 import { roleLabels } from "../utils/roles";
+
+function includesText(value, query) {
+  return String(value || "").toLowerCase().includes(query.toLowerCase());
+}
 
 export default function StudentScreen({ profile, user, onLogout }) {
   const [summary, setSummary] = useState({
@@ -26,25 +30,31 @@ export default function StudentScreen({ profile, user, onLogout }) {
   });
   const [courses, setCourses] = useState([]);
   const [attendanceEntries, setAttendanceEntries] = useState([]);
-  const [ratingEntries, setRatingEntries] = useState([]);
-  const [attendance, setAttendance] = useState({ className: "", presentCount: "" });
+  const [monitoringEntries, setMonitoringEntries] = useState([]);
+  const [myRatings, setMyRatings] = useState([]);
   const [rating, setRating] = useState({ className: "", score: "", feedback: "" });
+  const [courseSearch, setCourseSearch] = useState("");
+  const [attendanceSearch, setAttendanceSearch] = useState("");
+  const [monitoringSearch, setMonitoringSearch] = useState("");
+  const [ratingSearch, setRatingSearch] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   const loadDashboard = async () => {
     setLoading(true);
     try {
-      const [summaryData, coursesData, attendanceData, ratingData] = await Promise.all([
+      const [summaryData, coursesData, lecturerAttendance, lecturerMonitoring, studentRatings] = await Promise.all([
         getRoleSummary(user.uid, profile.role),
         getCoursesForRole(profile.role, profile.stream),
-        getRecentAttendanceByOwner(user.uid, 6),
-        getRecentRatingsByOwner(user.uid, 6)
+        getRecentAttendance(20, { facultyName: profile.facultyName, submittedByRole: "lecturer" }),
+        getRecentRatings(20, { facultyName: profile.facultyName, submittedByRole: "lecturer" }),
+        getRecentRatings(20, { ownerId: user.uid, submittedByRole: "student" })
       ]);
       setSummary(summaryData);
       setCourses(coursesData);
-      setAttendanceEntries(attendanceData);
-      setRatingEntries(ratingData);
+      setAttendanceEntries(lecturerAttendance);
+      setMonitoringEntries(lecturerMonitoring);
+      setMyRatings(studentRatings);
     } finally {
       setLoading(false);
     }
@@ -52,25 +62,47 @@ export default function StudentScreen({ profile, user, onLogout }) {
 
   useEffect(() => {
     loadDashboard().catch(() => null);
-  }, [profile.role, profile.stream, user.uid]);
+  }, [profile.role, profile.stream, profile.facultyName, user.uid]);
 
-  const saveAttendance = async () => {
-    await submitAttendance({
-      ...attendance,
-      ownerId: user.uid,
-      role: profile.role,
-      facultyName: profile.facultyName
-    });
-    setAttendance({ className: "", presentCount: "" });
-    setMessage("Attendance record submitted.");
-    await loadDashboard();
-  };
+  const filteredCourses = useMemo(
+    () => courses.filter((course) => (
+      includesText(course.className, courseSearch)
+      || includesText(course.courseName, courseSearch)
+      || includesText(course.courseCode, courseSearch)
+    )),
+    [courses, courseSearch]
+  );
+
+  const filteredAttendance = useMemo(
+    () => attendanceEntries.filter((entry) => (
+      includesText(entry.className, attendanceSearch)
+      || includesText(entry.courseCode, attendanceSearch)
+    )),
+    [attendanceEntries, attendanceSearch]
+  );
+
+  const filteredMonitoring = useMemo(
+    () => monitoringEntries.filter((entry) => (
+      includesText(entry.className, monitoringSearch)
+      || includesText(entry.feedback, monitoringSearch)
+    )),
+    [monitoringEntries, monitoringSearch]
+  );
+
+  const filteredMyRatings = useMemo(
+    () => myRatings.filter((entry) => (
+      includesText(entry.className, ratingSearch)
+      || includesText(entry.feedback, ratingSearch)
+    )),
+    [myRatings, ratingSearch]
+  );
 
   const saveRating = async () => {
     await submitRating({
       ...rating,
       ownerId: user.uid,
       role: profile.role,
+      submittedByRole: "student",
       facultyName: profile.facultyName
     });
     setRating({ className: "", score: "", feedback: "" });
@@ -78,12 +110,23 @@ export default function StudentScreen({ profile, user, onLogout }) {
     await loadDashboard();
   };
 
+  const exportStudentRatings = async () => {
+    await exportRowsToExcel("student-ratings", filteredMyRatings.map((entry) => ({
+      className: entry.className || "",
+      score: entry.score ?? "",
+      feedback: entry.feedback || "",
+      facultyName: entry.facultyName || "",
+      submittedByRole: entry.submittedByRole || "",
+      createdAt: entry.createdAt?.toDate?.()?.toISOString?.() || ""
+    })));
+  };
+
   return (
     <ScreenContainer>
       <SectionCard title={`Hello, ${profile.fullName}`} subtitle={profile.facultyName}>
         <RoleBadge label={roleLabels[profile.role]} />
         <Text style={styles.copy}>
-          Student module for login, monitoring, rating, and attendance tracking.
+          Student module for login/register, monitoring view, attendance view, and rating submission.
         </Text>
         <PrimaryButton label={loading ? "Refreshing..." : "Refresh Dashboard"} onPress={loadDashboard} variant="secondary" />
         <PrimaryButton label="Logout" onPress={onLogout} variant="secondary" />
@@ -91,26 +134,20 @@ export default function StudentScreen({ profile, user, onLogout }) {
 
       <View style={styles.row}>
         <InfoCard label="Active Courses" value={summary.activeCourses} />
-        <InfoCard label="Avg Attendance" value={summary.averageAttendance} tone="highlight" />
+        <InfoCard label="Attendance Avg" value={summary.averageAttendance} tone="highlight" />
       </View>
       <View style={styles.row}>
-        <InfoCard label="My Ratings" value={summary.averageRating} />
-        <InfoCard label="Reports Logged" value={summary.reportsSubmitted} />
+        <InfoCard label="My Rating Avg" value={summary.averageRating} />
+        <InfoCard label="My Logs" value={summary.reportsSubmitted} />
       </View>
 
-      <SectionCard title="Monitoring">
-        <Text style={styles.copy}>
-          Students can monitor personal class engagement and help lecturers validate actual attendance.
-        </Text>
-      </SectionCard>
-
       <SectionCard title="Classes">
-        {courses.length ? courses.map((course) => (
+        <FormInput label="Search Classes / Modules" value={courseSearch} placeholder="Search by class, module, code" onChangeText={setCourseSearch} />
+        {filteredCourses.length ? filteredCourses.map((course) => (
           <Pressable
             key={course.id}
             style={styles.listItem}
             onPress={() => {
-              setAttendance((current) => ({ ...current, className: course.className || current.className }));
               setRating((current) => ({ ...current, className: course.className || current.className }));
             }}
           >
@@ -118,16 +155,32 @@ export default function StudentScreen({ profile, user, onLogout }) {
             <Text style={styles.listText}>Lecture Time: {course.lectureTime || "TBD"}</Text>
             <Text style={styles.listText}>Venue: {course.venue || "TBD"}</Text>
           </Pressable>
-        )) : <Text style={styles.copy}>No classes listed yet.</Text>}
+        )) : <Text style={styles.copy}>No classes matched your search.</Text>}
       </SectionCard>
 
-      <SectionCard title="Attendance">
-        <FormInput label="Class Name" value={attendance.className} placeholder="Select class above or type class name" onChangeText={(value) => setAttendance((current) => ({ ...current, className: value }))} />
-        <FormInput label="Students Present" value={attendance.presentCount} placeholder="45" keyboardType="numeric" onChangeText={(value) => setAttendance((current) => ({ ...current, presentCount: value }))} />
-        <PrimaryButton label="Save Attendance" onPress={saveAttendance} />
+      <SectionCard title="Attendance (Inserted By Lecturer)">
+        <FormInput label="Search Attendance" value={attendanceSearch} placeholder="Search class or course code" onChangeText={setAttendanceSearch} />
+        {filteredAttendance.length ? filteredAttendance.map((entry) => (
+          <View key={entry.id} style={styles.listItem}>
+            <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
+            <Text style={styles.listText}>Present Count: {entry.presentCount ?? "N/A"}</Text>
+            <Text style={styles.listText}>Recorded By: {entry.submittedByRole || "lecturer"}</Text>
+          </View>
+        )) : <Text style={styles.copy}>No lecturer attendance records matched your search.</Text>}
       </SectionCard>
 
-      <SectionCard title="Rating">
+      <SectionCard title="Monitoring (Inserted By Lecturer)">
+        <FormInput label="Search Monitoring" value={monitoringSearch} placeholder="Search class or monitoring notes" onChangeText={setMonitoringSearch} />
+        {filteredMonitoring.length ? filteredMonitoring.map((entry) => (
+          <View key={entry.id} style={styles.listItem}>
+            <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
+            <Text style={styles.listText}>Score: {entry.score ?? "N/A"}</Text>
+            <Text style={styles.listText}>Notes: {entry.feedback || "N/A"}</Text>
+          </View>
+        )) : <Text style={styles.copy}>No lecturer monitoring records matched your search.</Text>}
+      </SectionCard>
+
+      <SectionCard title="Rating (Student Input)">
         <FormInput label="Class Name" value={rating.className} placeholder="Select class above or type class name" onChangeText={(value) => setRating((current) => ({ ...current, className: value }))} />
         <FormInput label="Score (1-5)" value={rating.score} placeholder="4" keyboardType="numeric" onChangeText={(value) => setRating((current) => ({ ...current, score: value }))} />
         <FormInput label="Feedback" value={rating.feedback} placeholder="Your class feedback" multiline onChangeText={(value) => setRating((current) => ({ ...current, feedback: value }))} />
@@ -135,23 +188,16 @@ export default function StudentScreen({ profile, user, onLogout }) {
         {message ? <Text style={styles.success}>{message}</Text> : null}
       </SectionCard>
 
-      <SectionCard title="Recently Inserted Attendance">
-        {attendanceEntries.length ? attendanceEntries.map((entry) => (
-          <View key={entry.id} style={styles.listItem}>
-            <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
-            <Text style={styles.listText}>Present: {entry.presentCount ?? "N/A"}</Text>
-          </View>
-        )) : <Text style={styles.copy}>No attendance entries yet.</Text>}
-      </SectionCard>
-
-      <SectionCard title="Recently Inserted Ratings">
-        {ratingEntries.length ? ratingEntries.map((entry) => (
+      <SectionCard title="My Ratings">
+        <FormInput label="Search My Ratings" value={ratingSearch} placeholder="Search class or feedback" onChangeText={setRatingSearch} />
+        <PrimaryButton label="Download My Ratings (Excel)" onPress={exportStudentRatings} variant="secondary" />
+        {filteredMyRatings.length ? filteredMyRatings.map((entry) => (
           <View key={entry.id} style={styles.listItem}>
             <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
             <Text style={styles.listText}>Score: {entry.score ?? "N/A"}</Text>
             <Text style={styles.listText}>Feedback: {entry.feedback || "N/A"}</Text>
           </View>
-        )) : <Text style={styles.copy}>No ratings yet.</Text>}
+        )) : <Text style={styles.copy}>No ratings matched your search.</Text>}
       </SectionCard>
     </ScreenContainer>
   );

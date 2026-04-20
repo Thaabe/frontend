@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import SectionCard from "../components/SectionCard";
@@ -7,7 +7,8 @@ import FormInput from "../components/FormInput";
 import PrimaryButton from "../components/PrimaryButton";
 import RoleBadge from "../components/RoleBadge";
 import { theme } from "../constants/theme";
-import { getCoursesForRole, getRecentReports, getRoleSummary, saveCourse, submitRating } from "../services/firestore";
+import { getCoursesForRole, getRecentReportsFiltered, getRoleSummary, saveCourse, submitRating } from "../services/firestore";
+import { exportRowsToExcel } from "../utils/reportExport";
 import { roleLabels } from "../utils/roles";
 
 const initialCourse = {
@@ -31,6 +32,8 @@ export default function ProgramLeaderScreen({ profile, user, onLogout }) {
   const [courses, setCourses] = useState([]);
   const [reports, setReports] = useState([]);
   const [rating, setRating] = useState({ className: "", score: "", feedback: "" });
+  const [courseSearch, setCourseSearch] = useState("");
+  const [reportSearch, setReportSearch] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -40,7 +43,7 @@ export default function ProgramLeaderScreen({ profile, user, onLogout }) {
       const [summaryData, coursesData, reportsData] = await Promise.all([
         getRoleSummary(user.uid, profile.role),
         getCoursesForRole(profile.role, profile.stream),
-        getRecentReports(8)
+        getRecentReportsFiltered(20, { facultyName: profile.facultyName || undefined })
       ]);
       setSummary(summaryData);
       setCourses(coursesData);
@@ -71,11 +74,45 @@ export default function ProgramLeaderScreen({ profile, user, onLogout }) {
       ...rating,
       ownerId: user.uid,
       role: profile.role,
+      submittedByRole: "program_leader",
       facultyName: profile.facultyName
     });
     setRating({ className: "", score: "", feedback: "" });
     setMessage("Program rating saved.");
     await loadDashboard();
+  };
+
+  const filteredCourses = useMemo(
+    () => courses.filter((course) => (
+      `${course.courseName || ""} ${course.courseCode || ""} ${course.className || ""} ${course.assignedLecturer || ""}`
+        .toLowerCase()
+        .includes(courseSearch.toLowerCase())
+    )),
+    [courses, courseSearch]
+  );
+
+  const filteredReports = useMemo(
+    () => reports.filter((report) => (
+      `${report.courseName || ""} ${report.courseCode || ""} ${report.className || ""} ${report.weekOfReporting || ""}`
+        .toLowerCase()
+        .includes(reportSearch.toLowerCase())
+    )),
+    [reports, reportSearch]
+  );
+
+  const exportReports = async () => {
+    await exportRowsToExcel("program-leader-reports", filteredReports.map((report) => ({
+      facultyName: report.facultyName || "",
+      courseName: report.courseName || "",
+      courseCode: report.courseCode || "",
+      className: report.className || "",
+      weekOfReporting: report.weekOfReporting || "",
+      lecturerName: report.lecturerName || "",
+      lectureDate: report.lectureDate || "",
+      scheduledLectureTime: report.scheduledLectureTime || "",
+      recommendations: report.recommendations || "",
+      feedbackStatus: report.feedbackStatus || "Pending"
+    })));
   };
 
   return (
@@ -110,25 +147,28 @@ export default function ProgramLeaderScreen({ profile, user, onLogout }) {
       </SectionCard>
 
       <SectionCard title="Classes and Lectures">
-        {courses.length ? courses.map((course) => (
+        <FormInput label="Search Courses" value={courseSearch} placeholder="Search module, class, lecturer, code" onChangeText={setCourseSearch} />
+        {filteredCourses.length ? filteredCourses.map((course) => (
           <View key={course.id} style={styles.listItem}>
             <Text style={styles.listTitle}>{course.courseName} ({course.courseCode})</Text>
             <Text style={styles.listText}>Assigned Lecturer: {course.assignedLecturer || "Not assigned"}</Text>
             <Text style={styles.listText}>Lecture Time: {course.lectureTime || "TBD"}</Text>
             <Text style={styles.listText}>Venue: {course.venue || "TBD"}</Text>
           </View>
-        )) : <Text style={styles.copy}>No courses have been created yet.</Text>}
+        )) : <Text style={styles.copy}>No courses matched your search.</Text>}
       </SectionCard>
 
       <SectionCard title="Reports From PRL">
-        {reports.length ? reports.map((report) => (
+        <FormInput label="Search Reports" value={reportSearch} placeholder="Search module, class, week, code" onChangeText={setReportSearch} />
+        <PrimaryButton label="Download Reports (Excel)" onPress={exportReports} variant="secondary" />
+        {filteredReports.length ? filteredReports.map((report) => (
           <View key={report.id} style={styles.listItem}>
             <Text style={styles.listTitle}>{report.courseName} - {report.className}</Text>
             <Text style={styles.listText}>Week: {report.weekOfReporting}</Text>
             <Text style={styles.listText}>Lecture Time: {report.scheduledLectureTime || "TBD"}</Text>
             <Text style={styles.listText}>Recommendations: {report.recommendations}</Text>
           </View>
-        )) : <Text style={styles.copy}>No reports have been submitted yet.</Text>}
+        )) : <Text style={styles.copy}>No reports matched your search.</Text>}
       </SectionCard>
 
       <SectionCard title="Monitoring and Rating">

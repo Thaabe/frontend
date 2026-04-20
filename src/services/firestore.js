@@ -40,6 +40,45 @@ function getTimestampValue(value) {
   return 0;
 }
 
+function applyFilters(items, options = {}) {
+  const {
+    ownerId,
+    facultyName,
+    stream,
+    className,
+    courseCode,
+    submittedByRole
+  } = options;
+
+  return items.filter((item) => {
+    if (ownerId && item.ownerId !== ownerId) {
+      return false;
+    }
+
+    if (facultyName && item.facultyName !== facultyName) {
+      return false;
+    }
+
+    if (stream && item.stream !== stream) {
+      return false;
+    }
+
+    if (className && item.className !== className) {
+      return false;
+    }
+
+    if (courseCode && item.courseCode !== courseCode) {
+      return false;
+    }
+
+    if (submittedByRole && item.submittedByRole !== submittedByRole) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
 export async function createUserProfile(uid, payload) {
   await setDoc(doc(db, collections.users, uid), {
     ...payload,
@@ -93,6 +132,7 @@ export async function submitLectureReport(report) {
     actualStudentsPresent: Number(report.actualStudentsPresent),
     totalRegisteredStudents: Number(report.totalRegisteredStudents),
     createdAt: serverTimestamp(),
+    submittedByRole: "lecturer",
     feedbackStatus: "Pending"
   };
 
@@ -110,6 +150,7 @@ export async function submitAttendance(entry) {
   await addDoc(collection(db, collections.attendance), {
     ...entry,
     presentCount: Number(entry.presentCount),
+    submittedByRole: entry.submittedByRole || entry.role || "lecturer",
     createdAt: serverTimestamp()
   });
 }
@@ -118,6 +159,7 @@ export async function submitRating(entry) {
   await addDoc(collection(db, collections.ratings), {
     ...entry,
     score: Number(entry.score),
+    submittedByRole: entry.submittedByRole || entry.role || "student",
     createdAt: serverTimestamp()
   });
 }
@@ -140,6 +182,17 @@ export async function getRecentReports(limitCount = 10) {
   const snapshots = await getDocs(q);
   return snapshots.docs
     .map((item) => ({ id: item.id, ...item.data() }))
+    .sort((a, b) => getTimestampValue(b.createdAt) - getTimestampValue(a.createdAt))
+    .slice(0, limitCount);
+}
+
+export async function getRecentReportsFiltered(limitCount = 10, options = {}) {
+  const q = query(collection(db, collections.reports), limit(200));
+  const snapshots = await getDocs(q);
+  return applyFilters(
+    snapshots.docs.map((item) => ({ id: item.id, ...item.data() })),
+    options
+  )
     .sort((a, b) => getTimestampValue(b.createdAt) - getTimestampValue(a.createdAt))
     .slice(0, limitCount);
 }
@@ -170,6 +223,17 @@ export async function getRecentAttendanceByOwner(uid, limitCount = 10) {
     .slice(0, limitCount);
 }
 
+export async function getRecentAttendance(limitCount = 10, options = {}) {
+  const q = query(collection(db, collections.attendance), limit(200));
+  const snapshots = await getDocs(q);
+  return applyFilters(
+    snapshots.docs.map((item) => ({ id: item.id, ...item.data() })),
+    options
+  )
+    .sort((a, b) => getTimestampValue(b.createdAt) - getTimestampValue(a.createdAt))
+    .slice(0, limitCount);
+}
+
 export async function getRecentRatingsByOwner(uid, limitCount = 10) {
   const q = query(
     collection(db, collections.ratings),
@@ -179,6 +243,17 @@ export async function getRecentRatingsByOwner(uid, limitCount = 10) {
   const snapshots = await getDocs(q);
   return snapshots.docs
     .map((item) => ({ id: item.id, ...item.data() }))
+    .sort((a, b) => getTimestampValue(b.createdAt) - getTimestampValue(a.createdAt))
+    .slice(0, limitCount);
+}
+
+export async function getRecentRatings(limitCount = 10, options = {}) {
+  const q = query(collection(db, collections.ratings), limit(200));
+  const snapshots = await getDocs(q);
+  return applyFilters(
+    snapshots.docs.map((item) => ({ id: item.id, ...item.data() })),
+    options
+  )
     .sort((a, b) => getTimestampValue(b.createdAt) - getTimestampValue(a.createdAt))
     .slice(0, limitCount);
 }

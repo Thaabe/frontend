@@ -17,6 +17,9 @@
       "eas": {
         "projectId": "6b365161-639d-41e7-ba90-a3023fd3e509"
       }
+    },
+    "android": {
+      "package": "com.thaabe.luctfacultyreporting"
     }
   }
 }

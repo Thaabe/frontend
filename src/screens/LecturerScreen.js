@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import SectionCard from "../components/SectionCard";
@@ -16,6 +16,7 @@ import {
   submitLectureReport,
   submitRating
 } from "../services/firestore";
+import { exportRowsToExcel } from "../utils/reportExport";
 import { roleLabels } from "../utils/roles";
 
 const initialReport = (profile) => ({
@@ -47,6 +48,8 @@ export default function LecturerScreen({ profile, user, onLogout }) {
   const [myReports, setMyReports] = useState([]);
   const [attendance, setAttendance] = useState({ className: "", presentCount: "" });
   const [rating, setRating] = useState({ className: "", score: "", feedback: "" });
+  const [classSearch, setClassSearch] = useState("");
+  const [reportSearch, setReportSearch] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -116,7 +119,9 @@ export default function LecturerScreen({ profile, user, onLogout }) {
   const saveReport = async () => {
     await submitLectureReport({
       ...report,
-      ownerId: user.uid
+      ownerId: user.uid,
+      stream: profile.stream || "",
+      submittedByRole: "lecturer"
     });
     setReport(initialReport(profile));
     setMessage("Lecture report saved successfully.");
@@ -128,6 +133,7 @@ export default function LecturerScreen({ profile, user, onLogout }) {
       ...attendance,
       ownerId: user.uid,
       role: profile.role,
+      submittedByRole: "lecturer",
       facultyName: profile.facultyName
     });
     setAttendance({ className: "", presentCount: "" });
@@ -140,11 +146,49 @@ export default function LecturerScreen({ profile, user, onLogout }) {
       ...rating,
       ownerId: user.uid,
       role: profile.role,
+      submittedByRole: "lecturer",
       facultyName: profile.facultyName
     });
     setRating({ className: "", score: "", feedback: "" });
     setMessage("Monitoring rating submitted.");
     await loadDashboard();
+  };
+
+  const filteredCourses = useMemo(
+    () => courses.filter((course) => (
+      `${course.className || ""} ${course.courseName || ""} ${course.courseCode || ""}`
+        .toLowerCase()
+        .includes(classSearch.toLowerCase())
+    )),
+    [courses, classSearch]
+  );
+
+  const filteredReports = useMemo(
+    () => myReports.filter((savedReport) => (
+      `${savedReport.courseName || ""} ${savedReport.className || ""} ${savedReport.weekOfReporting || ""} ${savedReport.courseCode || ""}`
+        .toLowerCase()
+        .includes(reportSearch.toLowerCase())
+    )),
+    [myReports, reportSearch]
+  );
+
+  const exportMyReports = async () => {
+    await exportRowsToExcel("lecturer-reports", filteredReports.map((savedReport) => ({
+      facultyName: savedReport.facultyName || "",
+      className: savedReport.className || "",
+      weekOfReporting: savedReport.weekOfReporting || "",
+      lectureDate: savedReport.lectureDate || "",
+      courseName: savedReport.courseName || "",
+      courseCode: savedReport.courseCode || "",
+      lecturerName: savedReport.lecturerName || "",
+      actualStudentsPresent: savedReport.actualStudentsPresent ?? "",
+      totalRegisteredStudents: savedReport.totalRegisteredStudents ?? "",
+      venue: savedReport.venue || "",
+      scheduledLectureTime: savedReport.scheduledLectureTime || "",
+      topicTaught: savedReport.topicTaught || "",
+      learningOutcomes: savedReport.learningOutcomes || "",
+      recommendations: savedReport.recommendations || ""
+    })));
   };
 
   return (
@@ -168,13 +212,14 @@ export default function LecturerScreen({ profile, user, onLogout }) {
       </View>
 
       <SectionCard title="Classes" subtitle="Tap a class to auto-fill form fields and see time.">
-        {courses.length ? courses.map((course) => (
+        <FormInput label="Search Classes / Modules" value={classSearch} placeholder="Search class, module, code" onChangeText={setClassSearch} />
+        {filteredCourses.length ? filteredCourses.map((course) => (
           <Pressable key={course.id} style={styles.listItem} onPress={() => applyCourseToReport(course)}>
             <Text style={styles.listTitle}>{course.className || "Class"} - {course.courseName} ({course.courseCode})</Text>
             <Text style={styles.listText}>Lecture Time: {course.lectureTime || "TBD"}</Text>
             <Text style={styles.listText}>Venue: {course.venue || "TBD"}</Text>
           </Pressable>
-        )) : <Text style={styles.copy}>No classes found yet. Ask Program Leader to add courses and time.</Text>}
+        )) : <Text style={styles.copy}>No classes found yet.</Text>}
       </SectionCard>
 
       <SectionCard title="Lecturer Reporting Form" subtitle="All assignment fields are captured below.">
@@ -196,14 +241,16 @@ export default function LecturerScreen({ profile, user, onLogout }) {
       </SectionCard>
 
       <SectionCard title="My Recently Submitted Reports">
-        {myReports.length ? myReports.map((savedReport) => (
+        <FormInput label="Search Reports" value={reportSearch} placeholder="Search class, module, week, code" onChangeText={setReportSearch} />
+        <PrimaryButton label="Download Reports (Excel)" onPress={exportMyReports} variant="secondary" />
+        {filteredReports.length ? filteredReports.map((savedReport) => (
           <View key={savedReport.id} style={styles.listItem}>
             <Text style={styles.listTitle}>{savedReport.courseName || "Course"} - {savedReport.className || "Class"}</Text>
             <Text style={styles.listText}>Week: {savedReport.weekOfReporting || "N/A"}</Text>
             <Text style={styles.listText}>Lecture Time: {savedReport.scheduledLectureTime || "TBD"}</Text>
             <Text style={styles.listText}>Topic: {savedReport.topicTaught || "N/A"}</Text>
           </View>
-        )) : <Text style={styles.copy}>No reports submitted yet.</Text>}
+        )) : <Text style={styles.copy}>No reports matched your search.</Text>}
       </SectionCard>
 
       <SectionCard title="Student Attendance">

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import SectionCard from "../components/SectionCard";
@@ -7,7 +7,8 @@ import FormInput from "../components/FormInput";
 import PrimaryButton from "../components/PrimaryButton";
 import RoleBadge from "../components/RoleBadge";
 import { theme } from "../constants/theme";
-import { addFeedback, getCoursesForRole, getRecentReports, getRoleSummary, submitRating } from "../services/firestore";
+import { addFeedback, getCoursesForRole, getRecentReportsFiltered, getRoleSummary, submitRating } from "../services/firestore";
+import { exportRowsToExcel } from "../utils/reportExport";
 import { roleLabels } from "../utils/roles";
 
 export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
@@ -21,6 +22,8 @@ export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
   const [reports, setReports] = useState([]);
   const [feedbackForm, setFeedbackForm] = useState({ reportId: "", feedback: "" });
   const [rating, setRating] = useState({ className: "", score: "", feedback: "" });
+  const [courseSearch, setCourseSearch] = useState("");
+  const [reportSearch, setReportSearch] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -30,7 +33,7 @@ export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
       const [summaryData, coursesData, reportsData] = await Promise.all([
         getRoleSummary(user.uid, profile.role),
         getCoursesForRole(profile.role, profile.stream),
-        getRecentReports(12)
+        getRecentReportsFiltered(20, { stream: profile.stream || undefined })
       ]);
       setSummary(summaryData);
       setCourses(coursesData);
@@ -56,11 +59,44 @@ export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
       ...rating,
       ownerId: user.uid,
       role: profile.role,
+      submittedByRole: "principal_lecturer",
       facultyName: profile.facultyName
     });
     setRating({ className: "", score: "", feedback: "" });
     setMessage("Rating saved.");
     await loadDashboard();
+  };
+
+  const filteredCourses = useMemo(
+    () => courses.filter((course) => (
+      `${course.courseName || ""} ${course.courseCode || ""} ${course.className || ""} ${course.assignedLecturer || ""}`
+        .toLowerCase()
+        .includes(courseSearch.toLowerCase())
+    )),
+    [courses, courseSearch]
+  );
+
+  const filteredReports = useMemo(
+    () => reports.filter((report) => (
+      `${report.courseName || ""} ${report.courseCode || ""} ${report.className || ""} ${report.weekOfReporting || ""}`
+        .toLowerCase()
+        .includes(reportSearch.toLowerCase())
+    )),
+    [reports, reportSearch]
+  );
+
+  const exportReports = async () => {
+    await exportRowsToExcel("principal-lecturer-reports", filteredReports.map((report) => ({
+      courseName: report.courseName || "",
+      courseCode: report.courseCode || "",
+      className: report.className || "",
+      weekOfReporting: report.weekOfReporting || "",
+      lectureDate: report.lectureDate || "",
+      lecturerName: report.lecturerName || "",
+      scheduledLectureTime: report.scheduledLectureTime || "",
+      topicTaught: report.topicTaught || "",
+      feedbackStatus: report.feedbackStatus || "Pending"
+    })));
   };
 
   return (
@@ -95,7 +131,8 @@ export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
       </View>
 
       <SectionCard title="Courses">
-        {courses.length ? courses.map((course) => (
+        <FormInput label="Search Courses" value={courseSearch} placeholder="Search module, class, lecturer, code" onChangeText={setCourseSearch} />
+        {filteredCourses.length ? filteredCourses.map((course) => (
           <View key={course.id} style={styles.listItem}>
             <Text style={styles.listTitle}>{course.courseName} ({course.courseCode})</Text>
             <Text style={styles.listText}>Lecturer: {course.assignedLecturer || "Pending assignment"}</Text>
@@ -103,11 +140,13 @@ export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
             <Text style={styles.listText}>Lecture Time: {course.lectureTime || "TBD"}</Text>
             <Text style={styles.listText}>Venue: {course.venue || "TBD"}</Text>
           </View>
-        )) : <Text style={styles.copy}>No courses in Firestore yet. Add them from the Program Leader module.</Text>}
+        )) : <Text style={styles.copy}>No courses matched your search.</Text>}
       </SectionCard>
 
       <SectionCard title="Reports">
-        {reports.length ? reports.map((report) => (
+        <FormInput label="Search Reports" value={reportSearch} placeholder="Search module, class, week, code" onChangeText={setReportSearch} />
+        <PrimaryButton label="Download Reports (Excel)" onPress={exportReports} variant="secondary" />
+        {filteredReports.length ? filteredReports.map((report) => (
           <View key={report.id} style={styles.listItem}>
             <Text style={styles.listTitle}>{report.courseName} - {report.weekOfReporting}</Text>
             <Text style={styles.listText}>Lecturer: {report.lecturerName}</Text>
@@ -116,13 +155,13 @@ export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
             <Text style={styles.listText}>Topic: {report.topicTaught}</Text>
             <Text style={styles.listText}>Status: {report.feedbackStatus || "Pending"}</Text>
           </View>
-        )) : <Text style={styles.copy}>No lecture reports available yet.</Text>}
+        )) : <Text style={styles.copy}>No reports matched your search.</Text>}
       </SectionCard>
 
       <SectionCard title="Add Feedback to Report">
         <FormInput label="Report ID" value={feedbackForm.reportId} placeholder="Tap a report below or type report id" onChangeText={(value) => setFeedbackForm((current) => ({ ...current, reportId: value }))} />
         <View style={styles.selectionRow}>
-          {reports.slice(0, 6).map((report) => (
+          {filteredReports.slice(0, 6).map((report) => (
             <Pressable
               key={report.id}
               style={[styles.selectionChip, feedbackForm.reportId === report.id ? styles.selectionChipActive : null]}
