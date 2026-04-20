@@ -51,7 +51,9 @@ export default function LecturerScreen({ profile, user, onLogout }) {
   const [classSearch, setClassSearch] = useState("");
   const [reportSearch, setReportSearch] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [submittingReport, setSubmittingReport] = useState(false);
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -117,15 +119,30 @@ export default function LecturerScreen({ profile, user, onLogout }) {
   };
 
   const saveReport = async () => {
-    await submitLectureReport({
-      ...report,
-      ownerId: user.uid,
-      stream: profile.stream || "",
-      submittedByRole: "lecturer"
-    });
-    setReport(initialReport(profile));
-    setMessage("Lecture report saved successfully.");
-    await loadDashboard();
+    if (!report.className.trim() || !report.courseName.trim() || !report.courseCode.trim()) {
+      setError("Class Name, Course Name, and Course Code are required.");
+      setMessage("");
+      return;
+    }
+
+    setSubmittingReport(true);
+    setError("");
+    setMessage("");
+    try {
+      await submitLectureReport({
+        ...report,
+        ownerId: user.uid,
+        stream: profile.stream || "",
+        submittedByRole: "lecturer"
+      });
+      setReport(initialReport(profile));
+      setMessage("Lecture report saved successfully.");
+      await loadDashboard();
+    } catch (submitError) {
+      setError(submitError?.message || "Failed to submit report.");
+    } finally {
+      setSubmittingReport(false);
+    }
   };
 
   const saveAttendance = async () => {
@@ -237,7 +254,9 @@ export default function LecturerScreen({ profile, user, onLogout }) {
         <FormInput label="Topic Taught" value={report.topicTaught} placeholder="Topic covered in lecture" multiline onChangeText={(value) => updateReport("topicTaught", value)} />
         <FormInput label="Learning Outcomes of the Topic" value={report.learningOutcomes} placeholder="What students should learn" multiline onChangeText={(value) => updateReport("learningOutcomes", value)} />
         <FormInput label="Lecturer Recommendations" value={report.recommendations} placeholder="Recommendations for improvement" multiline onChangeText={(value) => updateReport("recommendations", value)} />
-        <PrimaryButton label="Submit Report" onPress={saveReport} />
+        <PrimaryButton label={submittingReport ? "Submitting..." : "Submit Report"} onPress={saveReport} loading={submittingReport} />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {message ? <Text style={styles.success}>{message}</Text> : null}
       </SectionCard>
 
       <SectionCard title="My Recently Submitted Reports">
@@ -297,6 +316,10 @@ const styles = StyleSheet.create({
   },
   success: {
     color: theme.colors.success,
+    fontWeight: "700"
+  },
+  error: {
+    color: theme.colors.danger,
     fontWeight: "700"
   }
 });

@@ -40,6 +40,14 @@ function getTimestampValue(value) {
   return 0;
 }
 
+function buildRegistryId(className, courseCode) {
+  return `${className || ""}-${courseCode || ""}`
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function applyFilters(items, options = {}) {
   const {
     ownerId,
@@ -117,7 +125,7 @@ export async function getCoursesForRole(role, stream) {
 }
 
 export async function submitLectureReport(report) {
-  const registryId = `${report.className}-${report.courseCode}`.replace(/\s+/g, "_").toLowerCase();
+  const registryId = buildRegistryId(report.className, report.courseCode) || "default_registry";
 
   await setDoc(doc(db, collections.classRegistry, registryId), {
     className: report.className,
@@ -141,7 +149,10 @@ export async function submitLectureReport(report) {
 }
 
 export async function getStoredRegisteredStudents(className, courseCode) {
-  const registryId = `${className}-${courseCode}`.replace(/\s+/g, "_").toLowerCase();
+  const registryId = buildRegistryId(className, courseCode);
+  if (!registryId) {
+    return "";
+  }
   const snapshot = await getDoc(doc(db, collections.classRegistry, registryId));
   return snapshot.exists() ? snapshot.data().totalRegisteredStudents : "";
 }
