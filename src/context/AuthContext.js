@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -64,7 +64,7 @@ export function AuthProvider({ children }) {
     await signOut(auth);
   };
 
-  const value = useMemo(() => ({
+  const value = {
     user,
     profile,
     loading,
@@ -73,7 +73,7 @@ export function AuthProvider({ children }) {
     register,
     login,
     logout
-  }), [user, profile, loading, error]);
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

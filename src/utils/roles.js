@@ -5,7 +5,9 @@ export const roles = [
   { label: "Program Leader", value: "program_leader" }
 ];
 
-export const roleLabels = roles.reduce((acc, role) => {
-  acc[role.value] = role.label;
-  return acc;
-}, {});
+export const roleLabels = {};
+
+for (let index = 0; index < roles.length; index += 1) {
+  const role = roles[index];
+  roleLabels[role.value] = role.label;
+}

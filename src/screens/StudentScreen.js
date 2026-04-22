@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import SectionCard from "../components/SectionCard";
@@ -64,38 +64,26 @@ export default function StudentScreen({ profile, user, onLogout }) {
     loadDashboard().catch(() => null);
   }, [profile.role, profile.stream, profile.facultyName, user.uid]);
 
-  const filteredCourses = useMemo(
-    () => courses.filter((course) => (
+  const filteredCourses = courses.filter((course) => (
       includesText(course.className, courseSearch)
       || includesText(course.courseName, courseSearch)
       || includesText(course.courseCode, courseSearch)
-    )),
-    [courses, courseSearch]
-  );
+    ));
 
-  const filteredAttendance = useMemo(
-    () => attendanceEntries.filter((entry) => (
+  const filteredAttendance = attendanceEntries.filter((entry) => (
       includesText(entry.className, attendanceSearch)
       || includesText(entry.courseCode, attendanceSearch)
-    )),
-    [attendanceEntries, attendanceSearch]
-  );
+    ));
 
-  const filteredMonitoring = useMemo(
-    () => monitoringEntries.filter((entry) => (
+  const filteredMonitoring = monitoringEntries.filter((entry) => (
       includesText(entry.className, monitoringSearch)
       || includesText(entry.feedback, monitoringSearch)
-    )),
-    [monitoringEntries, monitoringSearch]
-  );
+    ));
 
-  const filteredMyRatings = useMemo(
-    () => myRatings.filter((entry) => (
+  const filteredMyRatings = myRatings.filter((entry) => (
       includesText(entry.className, ratingSearch)
       || includesText(entry.feedback, ratingSearch)
-    )),
-    [myRatings, ratingSearch]
-  );
+    ));
 
   const saveRating = async () => {
     await submitRating({
@@ -113,11 +101,17 @@ export default function StudentScreen({ profile, user, onLogout }) {
   const exportStudentRatings = async () => {
     await exportRowsToExcel("student-ratings", filteredMyRatings.map((entry) => ({
       className: entry.className || "",
-      score: entry.score ?? "",
+      score: entry.score != null ? entry.score : "",
       feedback: entry.feedback || "",
       facultyName: entry.facultyName || "",
       submittedByRole: entry.submittedByRole || "",
-      createdAt: entry.createdAt?.toDate?.()?.toISOString?.() || ""
+      createdAt:
+        entry.createdAt
+        && typeof entry.createdAt.toDate === "function"
+        && entry.createdAt.toDate()
+        && typeof entry.createdAt.toDate().toISOString === "function"
+          ? entry.createdAt.toDate().toISOString()
+          : ""
     })));
   };
 
@@ -163,7 +157,7 @@ export default function StudentScreen({ profile, user, onLogout }) {
         {filteredAttendance.length ? filteredAttendance.map((entry) => (
           <View key={entry.id} style={styles.listItem}>
             <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
-            <Text style={styles.listText}>Present Count: {entry.presentCount ?? "N/A"}</Text>
+            <Text style={styles.listText}>Present Count: {entry.presentCount != null ? entry.presentCount : "N/A"}</Text>
             <Text style={styles.listText}>Recorded By: {entry.submittedByRole || "lecturer"}</Text>
           </View>
         )) : <Text style={styles.copy}>No lecturer attendance records matched your search.</Text>}
@@ -174,7 +168,7 @@ export default function StudentScreen({ profile, user, onLogout }) {
         {filteredMonitoring.length ? filteredMonitoring.map((entry) => (
           <View key={entry.id} style={styles.listItem}>
             <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
-            <Text style={styles.listText}>Score: {entry.score ?? "N/A"}</Text>
+            <Text style={styles.listText}>Score: {entry.score != null ? entry.score : "N/A"}</Text>
             <Text style={styles.listText}>Notes: {entry.feedback || "N/A"}</Text>
           </View>
         )) : <Text style={styles.copy}>No lecturer monitoring records matched your search.</Text>}
@@ -194,7 +188,7 @@ export default function StudentScreen({ profile, user, onLogout }) {
         {filteredMyRatings.length ? filteredMyRatings.map((entry) => (
           <View key={entry.id} style={styles.listItem}>
             <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
-            <Text style={styles.listText}>Score: {entry.score ?? "N/A"}</Text>
+            <Text style={styles.listText}>Score: {entry.score != null ? entry.score : "N/A"}</Text>
             <Text style={styles.listText}>Feedback: {entry.feedback || "N/A"}</Text>
           </View>
         )) : <Text style={styles.copy}>No ratings matched your search.</Text>}

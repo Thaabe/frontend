@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import SectionCard from "../components/SectionCard";
@@ -139,7 +139,11 @@ export default function LecturerScreen({ profile, user, onLogout }) {
       setMessage("Lecture report saved successfully.");
       await loadDashboard();
     } catch (submitError) {
-      setError(submitError?.message || "Failed to submit report.");
+      if (submitError && submitError.message) {
+        setError(submitError.message);
+      } else {
+        setError("Failed to submit report.");
+      }
     } finally {
       setSubmittingReport(false);
     }
@@ -171,23 +175,17 @@ export default function LecturerScreen({ profile, user, onLogout }) {
     await loadDashboard();
   };
 
-  const filteredCourses = useMemo(
-    () => courses.filter((course) => (
+  const filteredCourses = courses.filter((course) => (
       `${course.className || ""} ${course.courseName || ""} ${course.courseCode || ""}`
         .toLowerCase()
         .includes(classSearch.toLowerCase())
-    )),
-    [courses, classSearch]
-  );
+    ));
 
-  const filteredReports = useMemo(
-    () => myReports.filter((savedReport) => (
+  const filteredReports = myReports.filter((savedReport) => (
       `${savedReport.courseName || ""} ${savedReport.className || ""} ${savedReport.weekOfReporting || ""} ${savedReport.courseCode || ""}`
         .toLowerCase()
         .includes(reportSearch.toLowerCase())
-    )),
-    [myReports, reportSearch]
-  );
+    ));
 
   const exportMyReports = async () => {
     await exportRowsToExcel("lecturer-reports", filteredReports.map((savedReport) => ({
@@ -198,8 +196,8 @@ export default function LecturerScreen({ profile, user, onLogout }) {
       courseName: savedReport.courseName || "",
       courseCode: savedReport.courseCode || "",
       lecturerName: savedReport.lecturerName || "",
-      actualStudentsPresent: savedReport.actualStudentsPresent ?? "",
-      totalRegisteredStudents: savedReport.totalRegisteredStudents ?? "",
+      actualStudentsPresent: savedReport.actualStudentsPresent != null ? savedReport.actualStudentsPresent : "",
+      totalRegisteredStudents: savedReport.totalRegisteredStudents != null ? savedReport.totalRegisteredStudents : "",
       venue: savedReport.venue || "",
       scheduledLectureTime: savedReport.scheduledLectureTime || "",
       topicTaught: savedReport.topicTaught || "",

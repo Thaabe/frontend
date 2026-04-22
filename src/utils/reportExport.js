@@ -1,7 +1,7 @@
 import { Alert, Linking, Platform } from "react-native";
 
 function escapeCell(value) {
-  const text = String(value ?? "");
+  const text = String(value != null ? value : "");
   if (text.includes(",") || text.includes('"') || text.includes("\n")) {
     return `"${text.replace(/"/g, '""')}"`;
   }

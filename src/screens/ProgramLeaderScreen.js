@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import SectionCard from "../components/SectionCard";
@@ -82,23 +82,17 @@ export default function ProgramLeaderScreen({ profile, user, onLogout }) {
     await loadDashboard();
   };
 
-  const filteredCourses = useMemo(
-    () => courses.filter((course) => (
+  const filteredCourses = courses.filter((course) => (
       `${course.courseName || ""} ${course.courseCode || ""} ${course.className || ""} ${course.assignedLecturer || ""}`
         .toLowerCase()
         .includes(courseSearch.toLowerCase())
-    )),
-    [courses, courseSearch]
-  );
+    ));
 
-  const filteredReports = useMemo(
-    () => reports.filter((report) => (
+  const filteredReports = reports.filter((report) => (
       `${report.courseName || ""} ${report.courseCode || ""} ${report.className || ""} ${report.weekOfReporting || ""}`
         .toLowerCase()
         .includes(reportSearch.toLowerCase())
-    )),
-    [reports, reportSearch]
-  );
+    ));
 
   const exportReports = async () => {
     await exportRowsToExcel("program-leader-reports", filteredReports.map((report) => ({
