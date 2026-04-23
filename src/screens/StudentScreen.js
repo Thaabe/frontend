@@ -6,7 +6,6 @@ import FormInput from "../components/FormInput";
 import PrimaryButton from "../components/PrimaryButton";
 import DashboardHeader from "../components/DashboardHeader";
 import DashboardStatCard from "../components/DashboardStatCard";
-import DashboardQuickAction from "../components/DashboardQuickAction";
 import { theme } from "../constants/theme";
 import {
   getCoursesForRole,
@@ -149,17 +148,6 @@ export default function StudentScreen({ profile, user, onLogout }) {
         <DashboardStatCard label="My Rating Avg" value={summary.averageRating} helper="Your submitted ratings" />
         <DashboardStatCard label="My Logs" value={summary.reportsSubmitted} helper="Recorded activity count" />
       </View>
-
-      <SectionCard title="Quick Actions">
-        <View style={styles.row}>
-          <DashboardQuickAction label="View Classes" onPress={() => setMessage("Use the 'Classes' section below.")} />
-          <DashboardQuickAction label="View Attendance" onPress={() => setMessage("Use 'Attendance' section below.")} />
-        </View>
-        <View style={styles.row}>
-          <DashboardQuickAction label="Check Monitoring" onPress={() => setMessage("Use 'Monitoring' section below.")} />
-          <DashboardQuickAction label="Submit Rating" onPress={() => setMessage("Use 'Rating (Student Input)' below.")} />
-        </View>
-      </SectionCard>
 
       <SectionCard title="Classes">
         <FormInput label="Search Classes / Modules" value={courseSearch} placeholder="Search by class, module, code" onChangeText={setCourseSearch} />

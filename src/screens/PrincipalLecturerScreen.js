@@ -6,7 +6,6 @@ import FormInput from "../components/FormInput";
 import PrimaryButton from "../components/PrimaryButton";
 import DashboardHeader from "../components/DashboardHeader";
 import DashboardStatCard from "../components/DashboardStatCard";
-import DashboardQuickAction from "../components/DashboardQuickAction";
 import { theme } from "../constants/theme";
 import { addFeedback, getCoursesForRole, getRecentReportsFiltered, getRoleSummary, submitRating } from "../services/firestore";
 import { exportRowsToExcel } from "../utils/reportExport";
@@ -148,17 +147,6 @@ export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
         <DashboardStatCard label="Attendance Avg" value={summary.averageAttendance} helper="Stream attendance trend" />
         <DashboardStatCard label="Rating Avg" value={summary.averageRating} helper="Monitoring average" />
       </View>
-
-      <SectionCard title="Quick Actions">
-        <View style={styles.row}>
-          <DashboardQuickAction label="Review Reports" onPress={() => setMessage("Use the 'Reports' section below to review records.")} />
-          <DashboardQuickAction label="Add Feedback" onPress={() => setMessage("Use 'Add Feedback to Report' section below.")} />
-        </View>
-        <View style={styles.row}>
-          <DashboardQuickAction label="Monitor Classes" onPress={() => setMessage("Use 'Courses' section below for class monitoring.")} />
-          <DashboardQuickAction label="Save Rating" onPress={() => setMessage("Use 'Monitoring and Rating' section below.")} />
-        </View>
-      </SectionCard>
 
       <SectionCard title="Courses">
         <FormInput label="Search Courses" value={courseSearch} placeholder="Search module, class, lecturer, code" onChangeText={setCourseSearch} />

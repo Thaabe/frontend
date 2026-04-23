@@ -103,11 +103,9 @@ export default function LecturerScreen({ profile, user, onLogout }) {
 
   const updateReport = (key, value) => {
     setReport((current) => ({ ...current, [key]: value }));
-    // Clear field error when user starts typing
     if (fieldErrors[key]) {
       setFieldErrors((prev) => ({ ...prev, [key]: null }));
     }
-    // Clear general error when user makes changes
     if (error) setError("");
   };
 
@@ -138,11 +136,9 @@ export default function LecturerScreen({ profile, user, onLogout }) {
   };
 
   const saveReport = async () => {
-    // Clear previous messages
     setError("");
     setMessage("");
     
-    // Validate form
     if (!validateReport()) {
       setError("Please fill in all required fields marked below");
       return;
@@ -153,51 +149,43 @@ export default function LecturerScreen({ profile, user, onLogout }) {
     try {
       console.log("Submitting report with data:", report);
       
-      // Prepare the report data
       const reportData = {
         ...report,
         ownerId: user.uid,
         stream: profile.stream || "",
         submittedByRole: "lecturer",
         facultyName: profile.facultyName || report.facultyName,
-        // Convert numeric fields to numbers if they're strings and not empty
         actualStudentsPresent: report.actualStudentsPresent ? Number(report.actualStudentsPresent) : 0,
         totalRegisteredStudents: report.totalRegisteredStudents ? Number(report.totalRegisteredStudents) : 0,
-        // Add metadata
         submittedAt: new Date().toISOString(),
         status: "submitted"
       };
       
       await submitLectureReport(reportData);
       
-      // Reset form on success
       setReport(initialReport(profile));
       setFieldErrors({});
-      setMessage("✓ Lecture report submitted successfully!");
+      setMessage("Lecture report submitted successfully!");
       
-      // Show success alert
       Alert.alert("Success", "Lecture report has been submitted successfully");
       
-      // Reload dashboard to show new report
       await loadDashboard();
       
-      // Clear success message after 3 seconds
       setTimeout(() => setMessage(""), 3000);
       
     } catch (submitError) {
       console.error("Error submitting report:", submitError);
       
-      // Detailed error handling
       if (submitError.code === "permission-denied") {
-        setError("❌ You don't have permission to submit reports. Please contact an administrator.");
+        setError("You don't have permission to submit reports. Please contact an administrator.");
       } else if (submitError.code === "unavailable") {
-        setError("❌ Network error. Please check your connection and try again.");
+        setError("Network error. Please check your connection and try again.");
       } else if (submitError.code === "not-found") {
-        setError("❌ Database collection not found. Please contact support.");
+        setError("Database collection not found. Please contact support.");
       } else if (submitError.message) {
-        setError(`❌ ${submitError.message}`);
+        setError(`${submitError.message}`);
       } else {
-        setError("❌ Failed to submit report. Please try again.");
+        setError("Failed to submit report. Please try again.");
       }
       
       Alert.alert("Submission Failed", error || "Please try again later");
@@ -238,7 +226,7 @@ export default function LecturerScreen({ profile, user, onLogout }) {
       });
       
       setAttendance({ className: "", presentCount: "" });
-      setMessage("✓ Student attendance saved successfully.");
+      setMessage("Student attendance saved successfully.");
       await loadDashboard();
       
       setTimeout(() => setMessage(""), 3000);
@@ -281,7 +269,7 @@ export default function LecturerScreen({ profile, user, onLogout }) {
       });
       
       setRating({ className: "", score: "", feedback: "" });
-      setMessage("✓ Monitoring rating submitted successfully.");
+      setMessage("Monitoring rating submitted successfully.");
       await loadDashboard();
       
       setTimeout(() => setMessage(""), 3000);
@@ -313,11 +301,9 @@ export default function LecturerScreen({ profile, user, onLogout }) {
       className: course.className || course.courseName || current.className
     }));
     
-    // Clear field errors for auto-filled fields
     setFieldErrors({});
     
-    // Show success message
-    setMessage(`✓ Course "${course.courseName}" loaded successfully`);
+    setMessage(`Course "${course.courseName}" loaded successfully`);
     setTimeout(() => setMessage(""), 2000);
   };
 
@@ -356,7 +342,7 @@ export default function LecturerScreen({ profile, user, onLogout }) {
         learningOutcomes: savedReport.learningOutcomes || "",
         recommendations: savedReport.recommendations || ""
       })));
-      setMessage("✓ Reports exported successfully");
+      setMessage("Reports exported successfully");
       setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       console.error("Export error:", error);
@@ -370,7 +356,6 @@ export default function LecturerScreen({ profile, user, onLogout }) {
            report.courseCode?.trim();
   };
 
-  // Helper to render form field with validation
   const renderFormField = (label, key, placeholder, options = {}) => {
     const { keyboardType = "default", multiline = false, required = true } = options;
     
@@ -411,7 +396,6 @@ export default function LecturerScreen({ profile, user, onLogout }) {
       />
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Stats Cards */}
         <View style={styles.row}>
           <DashboardStatCard label="Active Classes" value={summary.activeCourses} helper={courses.length ? "Live class list loaded" : "No classes yet"} />
           <DashboardStatCard label="Reports Submitted" value={summary.reportsSubmitted} helper={myReports.length ? "Latest reports listed" : "No submission yet"} />
@@ -421,8 +405,7 @@ export default function LecturerScreen({ profile, user, onLogout }) {
           <DashboardStatCard label="Rating Avg" value={summary.averageRating} helper="From monitoring scores" />
         </View>
 
-        {/* Classes Section */}
-        <SectionCard title="📚 Classes" subtitle="Tap a class to auto-fill form fields and see time.">
+        <SectionCard title="Classes" subtitle="Tap a class to auto-fill form fields and see time.">
           <FormInput 
             label="Search Classes / Modules" 
             value={classSearch} 
@@ -439,14 +422,13 @@ export default function LecturerScreen({ profile, user, onLogout }) {
               onPress={() => applyCourseToReport(course)}
             >
               <Text style={styles.listTitle}>{course.className || "Class"} - {course.courseName} ({course.courseCode})</Text>
-              <Text style={styles.listText}>📅 Lecture Time: {course.lectureTime || "TBD"}</Text>
-              <Text style={styles.listText}>📍 Venue: {course.venue || "TBD"}</Text>
+              <Text style={styles.listText}>Lecture Time: {course.lectureTime || "TBD"}</Text>
+              <Text style={styles.listText}>Venue: {course.venue || "TBD"}</Text>
             </Pressable>
           )) : <Text style={styles.copy}>No classes found yet.</Text>}
         </SectionCard>
 
-        {/* Reporting Form */}
-        <SectionCard title="📝 Lecturer Reporting Form" subtitle="All fields marked with * are required">
+        <SectionCard title="Lecturer Reporting Form" subtitle="All fields marked with * are required">
           {renderFormField("Faculty Name", "facultyName", "Faculty of ICT", { required: false })}
           {renderFormField("Class Name", "className", "BCSMY3S2")}
           {renderFormField("Week of Reporting", "weekOfReporting", "Week 5")}
@@ -473,8 +455,7 @@ export default function LecturerScreen({ profile, user, onLogout }) {
           {message ? <Text style={styles.success}>{message}</Text> : null}
         </SectionCard>
 
-        {/* My Reports Section */}
-        <SectionCard title="📄 My Recently Submitted Reports">
+        <SectionCard title="My Recently Submitted Reports">
           <FormInput 
             label="Search Reports" 
             value={reportSearch} 
@@ -489,9 +470,9 @@ export default function LecturerScreen({ profile, user, onLogout }) {
           {filteredReports.length ? filteredReports.map((savedReport) => (
             <View key={savedReport.id} style={styles.reportItem}>
               <Text style={styles.listTitle}>{savedReport.courseName || "Course"} - {savedReport.className || "Class"}</Text>
-              <Text style={styles.listText}>📅 Week: {savedReport.weekOfReporting || "N/A"}</Text>
-              <Text style={styles.listText}>⏰ Lecture Time: {savedReport.scheduledLectureTime || "TBD"}</Text>
-              <Text style={styles.listText}>📖 Topic: {savedReport.topicTaught || "N/A"}</Text>
+              <Text style={styles.listText}>Week: {savedReport.weekOfReporting || "N/A"}</Text>
+              <Text style={styles.listText}>Lecture Time: {savedReport.scheduledLectureTime || "TBD"}</Text>
+              <Text style={styles.listText}>Topic: {savedReport.topicTaught || "N/A"}</Text>
               {savedReport.submittedAt && (
                 <Text style={styles.listTextSmall}>Submitted: {new Date(savedReport.submittedAt).toLocaleString()}</Text>
               )}
@@ -499,8 +480,7 @@ export default function LecturerScreen({ profile, user, onLogout }) {
           )) : <Text style={styles.copy}>No reports matched your search.</Text>}
         </SectionCard>
 
-        {/* Attendance Section */}
-        <SectionCard title="📊 Student Attendance">
+        <SectionCard title="Student Attendance">
           <FormInput 
             label="Class Name" 
             value={attendance.className} 
@@ -517,8 +497,7 @@ export default function LecturerScreen({ profile, user, onLogout }) {
           <PrimaryButton label="Save Attendance" onPress={saveAttendance} />
         </SectionCard>
 
-        {/* Rating Section */}
-        <SectionCard title="⭐ Monitoring and Rating">
+        <SectionCard title="Monitoring and Rating">
           <FormInput 
             label="Class / Course Name" 
             value={rating.className} 

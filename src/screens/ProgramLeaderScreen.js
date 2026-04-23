@@ -6,7 +6,6 @@ import FormInput from "../components/FormInput";
 import PrimaryButton from "../components/PrimaryButton";
 import DashboardHeader from "../components/DashboardHeader";
 import DashboardStatCard from "../components/DashboardStatCard";
-import DashboardQuickAction from "../components/DashboardQuickAction";
 import { theme } from "../constants/theme";
 import { getCoursesForRole, getRecentReportsFiltered, getRoleSummary, saveCourse, submitRating } from "../services/firestore";
 import { exportRowsToExcel } from "../utils/reportExport";
@@ -155,17 +154,6 @@ export default function ProgramLeaderScreen({ profile, user, onLogout }) {
         <DashboardStatCard label="Attendance Avg" value={summary.averageAttendance} helper="Aggregated attendance" />
         <DashboardStatCard label="Rating Avg" value={summary.averageRating} helper="Overall lecture ratings" />
       </View>
-
-      <SectionCard title="Quick Actions">
-        <View style={styles.row}>
-          <DashboardQuickAction label="Add Course" onPress={() => setMessage("Use 'Courses and Lecturer Assignment' below.")} />
-          <DashboardQuickAction label="Assign Lecturer" onPress={() => setMessage("Fill lecturer details in assignment section.")} />
-        </View>
-        <View style={styles.row}>
-          <DashboardQuickAction label="View Reports" onPress={() => setMessage("Open 'Reports From PRL' below.")} />
-          <DashboardQuickAction label="Save Rating" onPress={() => setMessage("Use 'Monitoring and Rating' section below.")} />
-        </View>
-      </SectionCard>
 
       <SectionCard title="Courses and Lecturer Assignment">
         <FormInput label="Course Name" value={courseForm.courseName} onChangeText={(value) => setCourseForm((current) => ({ ...current, courseName: value }))} />
