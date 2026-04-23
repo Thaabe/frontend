@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import SectionCard from "../components/SectionCard";
-import InfoCard from "../components/InfoCard";
 import FormInput from "../components/FormInput";
 import PrimaryButton from "../components/PrimaryButton";
-import RoleBadge from "../components/RoleBadge";
+import DashboardHeader from "../components/DashboardHeader";
+import DashboardStatCard from "../components/DashboardStatCard";
+import DashboardQuickAction from "../components/DashboardQuickAction";
 import { theme } from "../constants/theme";
 import { getCoursesForRole, getRecentReportsFiltered, getRoleSummary, saveCourse, submitRating } from "../services/firestore";
 import { exportRowsToExcel } from "../utils/reportExport";
@@ -35,14 +36,15 @@ export default function ProgramLeaderScreen({ profile, user, onLogout }) {
   const [courseSearch, setCourseSearch] = useState("");
   const [reportSearch, setReportSearch] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const loadDashboard = async () => {
     setLoading(true);
     try {
       const [summaryData, coursesData, reportsData] = await Promise.all([
-        getRoleSummary(user.uid, profile.role),
-        getCoursesForRole(profile.role, profile.stream),
+        getRoleSummary(user.uid, profile.role, { stream: profile.stream, facultyName: profile.facultyName }),
+        getCoursesForRole(profile.role, profile.stream, profile.facultyName),
         getRecentReportsFiltered(20, { facultyName: profile.facultyName || undefined })
       ]);
       setSummary(summaryData);
@@ -58,28 +60,53 @@ export default function ProgramLeaderScreen({ profile, user, onLogout }) {
   }, [profile.role, profile.stream, user.uid]);
 
   const saveCourseData = async () => {
-    await saveCourse({
-      ...courseForm,
-      ownerId: user.uid,
-      facultyName: profile.facultyName,
-      stream: courseForm.stream || profile.stream
-    });
-    setCourseForm(initialCourse);
-    setMessage("Course assigned successfully.");
-    await loadDashboard();
+    setError("");
+    setMessage("");
+
+    if (!courseForm.courseName.trim() || !courseForm.courseCode.trim() || !courseForm.className.trim()) {
+      setError("Course Name, Course Code and Class Name are required.");
+      return;
+    }
+
+    try {
+      await saveCourse({
+        ...courseForm,
+        ownerId: user.uid,
+        facultyName: profile.facultyName,
+        stream: courseForm.stream || profile.stream || ""
+      });
+      setCourseForm(initialCourse);
+      setMessage("Course assigned successfully.");
+      await loadDashboard();
+    } catch (courseError) {
+      setError(courseError && courseError.message ? courseError.message : "Failed to save course.");
+    }
   };
 
   const saveRating = async () => {
-    await submitRating({
-      ...rating,
-      ownerId: user.uid,
-      role: profile.role,
-      submittedByRole: "program_leader",
-      facultyName: profile.facultyName
-    });
-    setRating({ className: "", score: "", feedback: "" });
-    setMessage("Program rating saved.");
-    await loadDashboard();
+    setError("");
+    setMessage("");
+
+    if (!rating.className.trim() || !rating.score.trim()) {
+      setError("Class Name and Score are required.");
+      return;
+    }
+
+    try {
+      await submitRating({
+        ...rating,
+        ownerId: user.uid,
+        role: profile.role,
+        submittedByRole: "program_leader",
+        facultyName: profile.facultyName,
+        stream: profile.stream || ""
+      });
+      setRating({ className: "", score: "", feedback: "" });
+      setMessage("Program rating saved.");
+      await loadDashboard();
+    } catch (ratingError) {
+      setError(ratingError && ratingError.message ? ratingError.message : "Failed to save rating.");
+    }
   };
 
   const filteredCourses = courses.filter((course) => (
@@ -111,23 +138,34 @@ export default function ProgramLeaderScreen({ profile, user, onLogout }) {
 
   return (
     <ScreenContainer>
-      <SectionCard title="Program Leader Dashboard" subtitle={profile.facultyName}>
-        <RoleBadge label={roleLabels[profile.role]} />
-        <Text style={styles.copy}>
-          Add courses, assign lecturer modules, view reports from Principal Lecturers, monitor classes, and review lectures.
-        </Text>
-        <PrimaryButton label={loading ? "Refreshing..." : "Refresh Dashboard"} onPress={loadDashboard} variant="secondary" />
-        <PrimaryButton label="Logout" onPress={onLogout} variant="secondary" />
-      </SectionCard>
+      <DashboardHeader
+        roleLabel={roleLabels[profile.role]}
+        title="Program Leader Dashboard"
+        subtitle={`${profile.facultyName || "Faculty"} - Manage courses and lecturer assignments`}
+        loading={loading}
+        onRefresh={loadDashboard}
+        onLogout={onLogout}
+      />
 
       <View style={styles.row}>
-        <InfoCard label="Managed Courses" value={courses.length} tone="highlight" />
-        <InfoCard label="Reports Visible" value={reports.length} />
+        <DashboardStatCard label="Managed Courses" value={courses.length} helper="Courses configured by PL" />
+        <DashboardStatCard label="Reports Visible" value={reports.length} helper="Reports shared with PL" />
       </View>
       <View style={styles.row}>
-        <InfoCard label="Attendance Avg" value={summary.averageAttendance} />
-        <InfoCard label="Rating Avg" value={summary.averageRating} />
+        <DashboardStatCard label="Attendance Avg" value={summary.averageAttendance} helper="Aggregated attendance" />
+        <DashboardStatCard label="Rating Avg" value={summary.averageRating} helper="Overall lecture ratings" />
       </View>
+
+      <SectionCard title="Quick Actions">
+        <View style={styles.row}>
+          <DashboardQuickAction label="Add Course" onPress={() => setMessage("Use 'Courses and Lecturer Assignment' below.")} />
+          <DashboardQuickAction label="Assign Lecturer" onPress={() => setMessage("Fill lecturer details in assignment section.")} />
+        </View>
+        <View style={styles.row}>
+          <DashboardQuickAction label="View Reports" onPress={() => setMessage("Open 'Reports From PRL' below.")} />
+          <DashboardQuickAction label="Save Rating" onPress={() => setMessage("Use 'Monitoring and Rating' section below.")} />
+        </View>
+      </SectionCard>
 
       <SectionCard title="Courses and Lecturer Assignment">
         <FormInput label="Course Name" value={courseForm.courseName} onChangeText={(value) => setCourseForm((current) => ({ ...current, courseName: value }))} />
@@ -138,6 +176,8 @@ export default function ProgramLeaderScreen({ profile, user, onLogout }) {
         <FormInput label="Lecture Time" value={courseForm.lectureTime} onChangeText={(value) => setCourseForm((current) => ({ ...current, lectureTime: value }))} />
         <FormInput label="Venue" value={courseForm.venue} onChangeText={(value) => setCourseForm((current) => ({ ...current, venue: value }))} />
         <PrimaryButton label="Save Course" onPress={saveCourseData} />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {message ? <Text style={styles.success}>{message}</Text> : null}
       </SectionCard>
 
       <SectionCard title="Classes and Lectures">
@@ -170,6 +210,7 @@ export default function ProgramLeaderScreen({ profile, user, onLogout }) {
         <FormInput label="Score (1-5)" value={rating.score} keyboardType="numeric" onChangeText={(value) => setRating((current) => ({ ...current, score: value }))} />
         <FormInput label="Review Notes" value={rating.feedback} multiline onChangeText={(value) => setRating((current) => ({ ...current, feedback: value }))} />
         <PrimaryButton label="Save Rating" onPress={saveRating} />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
         {message ? <Text style={styles.success}>{message}</Text> : null}
       </SectionCard>
     </ScreenContainer>
@@ -203,6 +244,10 @@ const styles = StyleSheet.create({
   },
   success: {
     color: theme.colors.success,
+    fontWeight: "700"
+  },
+  error: {
+    color: theme.colors.danger,
     fontWeight: "700"
   }
 });

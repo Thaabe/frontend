@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import SectionCard from "../components/SectionCard";
-import InfoCard from "../components/InfoCard";
 import FormInput from "../components/FormInput";
 import PrimaryButton from "../components/PrimaryButton";
-import RoleBadge from "../components/RoleBadge";
+import DashboardHeader from "../components/DashboardHeader";
+import DashboardStatCard from "../components/DashboardStatCard";
+import DashboardQuickAction from "../components/DashboardQuickAction";
 import { theme } from "../constants/theme";
 import {
   getCoursesForRole,
@@ -38,14 +39,15 @@ export default function StudentScreen({ profile, user, onLogout }) {
   const [monitoringSearch, setMonitoringSearch] = useState("");
   const [ratingSearch, setRatingSearch] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const loadDashboard = async () => {
     setLoading(true);
     try {
       const [summaryData, coursesData, lecturerAttendance, lecturerMonitoring, studentRatings] = await Promise.all([
-        getRoleSummary(user.uid, profile.role),
-        getCoursesForRole(profile.role, profile.stream),
+        getRoleSummary(user.uid, profile.role, { stream: profile.stream, facultyName: profile.facultyName }),
+        getCoursesForRole(profile.role, profile.stream, profile.facultyName),
         getRecentAttendance(20, { facultyName: profile.facultyName, submittedByRole: "lecturer" }),
         getRecentRatings(20, { facultyName: profile.facultyName, submittedByRole: "lecturer" }),
         getRecentRatings(20, { ownerId: user.uid, submittedByRole: "student" })
@@ -86,16 +88,29 @@ export default function StudentScreen({ profile, user, onLogout }) {
     ));
 
   const saveRating = async () => {
-    await submitRating({
-      ...rating,
-      ownerId: user.uid,
-      role: profile.role,
-      submittedByRole: "student",
-      facultyName: profile.facultyName
-    });
-    setRating({ className: "", score: "", feedback: "" });
-    setMessage("Class rating submitted.");
-    await loadDashboard();
+    setError("");
+    setMessage("");
+
+    if (!rating.className.trim() || !rating.score.trim()) {
+      setError("Class Name and Score are required.");
+      return;
+    }
+
+    try {
+      await submitRating({
+        ...rating,
+        ownerId: user.uid,
+        role: profile.role,
+        submittedByRole: "student",
+        facultyName: profile.facultyName,
+        stream: profile.stream || ""
+      });
+      setRating({ className: "", score: "", feedback: "" });
+      setMessage("Class rating submitted.");
+      await loadDashboard();
+    } catch (ratingError) {
+      setError(ratingError && ratingError.message ? ratingError.message : "Failed to submit rating.");
+    }
   };
 
   const exportStudentRatings = async () => {
@@ -117,23 +132,34 @@ export default function StudentScreen({ profile, user, onLogout }) {
 
   return (
     <ScreenContainer>
-      <SectionCard title={`Hello, ${profile.fullName}`} subtitle={profile.facultyName}>
-        <RoleBadge label={roleLabels[profile.role]} />
-        <Text style={styles.copy}>
-          Student module for login/register, monitoring view, attendance view, and rating submission.
-        </Text>
-        <PrimaryButton label={loading ? "Refreshing..." : "Refresh Dashboard"} onPress={loadDashboard} variant="secondary" />
-        <PrimaryButton label="Logout" onPress={onLogout} variant="secondary" />
-      </SectionCard>
+      <DashboardHeader
+        roleLabel={roleLabels[profile.role]}
+        title={`${profile.fullName || "Student"} Dashboard`}
+        subtitle={`${profile.facultyName || "Faculty"} - Track classes, attendance, and ratings`}
+        loading={loading}
+        onRefresh={loadDashboard}
+        onLogout={onLogout}
+      />
 
       <View style={styles.row}>
-        <InfoCard label="Active Courses" value={summary.activeCourses} />
-        <InfoCard label="Attendance Avg" value={summary.averageAttendance} tone="highlight" />
+        <DashboardStatCard label="Active Courses" value={summary.activeCourses} helper={courses.length ? "Current classes available" : "No classes yet"} />
+        <DashboardStatCard label="Attendance Avg" value={summary.averageAttendance} helper="Lecturer attendance entries" />
       </View>
       <View style={styles.row}>
-        <InfoCard label="My Rating Avg" value={summary.averageRating} />
-        <InfoCard label="My Logs" value={summary.reportsSubmitted} />
+        <DashboardStatCard label="My Rating Avg" value={summary.averageRating} helper="Your submitted ratings" />
+        <DashboardStatCard label="My Logs" value={summary.reportsSubmitted} helper="Recorded activity count" />
       </View>
+
+      <SectionCard title="Quick Actions">
+        <View style={styles.row}>
+          <DashboardQuickAction label="View Classes" onPress={() => setMessage("Use the 'Classes' section below.")} />
+          <DashboardQuickAction label="View Attendance" onPress={() => setMessage("Use 'Attendance' section below.")} />
+        </View>
+        <View style={styles.row}>
+          <DashboardQuickAction label="Check Monitoring" onPress={() => setMessage("Use 'Monitoring' section below.")} />
+          <DashboardQuickAction label="Submit Rating" onPress={() => setMessage("Use 'Rating (Student Input)' below.")} />
+        </View>
+      </SectionCard>
 
       <SectionCard title="Classes">
         <FormInput label="Search Classes / Modules" value={courseSearch} placeholder="Search by class, module, code" onChangeText={setCourseSearch} />
@@ -179,6 +205,7 @@ export default function StudentScreen({ profile, user, onLogout }) {
         <FormInput label="Score (1-5)" value={rating.score} placeholder="4" keyboardType="numeric" onChangeText={(value) => setRating((current) => ({ ...current, score: value }))} />
         <FormInput label="Feedback" value={rating.feedback} placeholder="Your class feedback" multiline onChangeText={(value) => setRating((current) => ({ ...current, feedback: value }))} />
         <PrimaryButton label="Submit Rating" onPress={saveRating} />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
         {message ? <Text style={styles.success}>{message}</Text> : null}
       </SectionCard>
 
@@ -224,6 +251,10 @@ const styles = StyleSheet.create({
   },
   success: {
     color: theme.colors.success,
+    fontWeight: "700"
+  },
+  error: {
+    color: theme.colors.danger,
     fontWeight: "700"
   }
 });

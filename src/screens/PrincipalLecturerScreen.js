@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import SectionCard from "../components/SectionCard";
-import InfoCard from "../components/InfoCard";
 import FormInput from "../components/FormInput";
 import PrimaryButton from "../components/PrimaryButton";
-import RoleBadge from "../components/RoleBadge";
+import DashboardHeader from "../components/DashboardHeader";
+import DashboardStatCard from "../components/DashboardStatCard";
+import DashboardQuickAction from "../components/DashboardQuickAction";
 import { theme } from "../constants/theme";
 import { addFeedback, getCoursesForRole, getRecentReportsFiltered, getRoleSummary, submitRating } from "../services/firestore";
 import { exportRowsToExcel } from "../utils/reportExport";
@@ -25,15 +26,21 @@ export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
   const [courseSearch, setCourseSearch] = useState("");
   const [reportSearch, setReportSearch] = useState("");
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const loadDashboard = async () => {
     setLoading(true);
     try {
       const [summaryData, coursesData, reportsData] = await Promise.all([
-        getRoleSummary(user.uid, profile.role),
-        getCoursesForRole(profile.role, profile.stream),
-        getRecentReportsFiltered(20, { stream: profile.stream || undefined })
+        getRoleSummary(user.uid, profile.role, { stream: profile.stream, facultyName: profile.facultyName }),
+        getCoursesForRole(profile.role, profile.stream, profile.facultyName),
+        getRecentReportsFiltered(
+          20,
+          profile.stream
+            ? { stream: profile.stream }
+            : { facultyName: profile.facultyName || undefined }
+        )
       ]);
       setSummary(summaryData);
       setCourses(coursesData);
@@ -48,23 +55,48 @@ export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
   }, [profile.role, profile.stream, user.uid]);
 
   const saveFeedback = async () => {
-    await addFeedback(feedbackForm.reportId, feedbackForm.feedback);
-    setFeedbackForm({ reportId: "", feedback: "" });
-    setMessage("Feedback added to lecture report.");
-    await loadDashboard();
+    setError("");
+    setMessage("");
+
+    if (!feedbackForm.reportId.trim() || !feedbackForm.feedback.trim()) {
+      setError("Report ID and Feedback are required.");
+      return;
+    }
+
+    try {
+      await addFeedback(feedbackForm.reportId, feedbackForm.feedback);
+      setFeedbackForm({ reportId: "", feedback: "" });
+      setMessage("Feedback added to lecture report.");
+      await loadDashboard();
+    } catch (feedbackError) {
+      setError(feedbackError && feedbackError.message ? feedbackError.message : "Failed to add feedback.");
+    }
   };
 
   const saveRating = async () => {
-    await submitRating({
-      ...rating,
-      ownerId: user.uid,
-      role: profile.role,
-      submittedByRole: "principal_lecturer",
-      facultyName: profile.facultyName
-    });
-    setRating({ className: "", score: "", feedback: "" });
-    setMessage("Rating saved.");
-    await loadDashboard();
+    setError("");
+    setMessage("");
+
+    if (!rating.className.trim() || !rating.score.trim()) {
+      setError("Class Name and Score are required.");
+      return;
+    }
+
+    try {
+      await submitRating({
+        ...rating,
+        ownerId: user.uid,
+        role: profile.role,
+        submittedByRole: "principal_lecturer",
+        facultyName: profile.facultyName,
+        stream: profile.stream || ""
+      });
+      setRating({ className: "", score: "", feedback: "" });
+      setMessage("Rating saved.");
+      await loadDashboard();
+    } catch (ratingError) {
+      setError(ratingError && ratingError.message ? ratingError.message : "Failed to save rating.");
+    }
   };
 
   const filteredCourses = courses.filter((course) => (
@@ -95,34 +127,38 @@ export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
 
   return (
     <ScreenContainer>
-      <SectionCard title="Principal Lecturer" subtitle={profile.stream || profile.facultyName}>
-        <RoleBadge label={roleLabels[profile.role]} />
-        <Text style={styles.copy}>
-          View all courses and lecturers in your stream, review reports, add feedback, monitor classes, and rate delivery.
-        </Text>
-        <PrimaryButton label={loading ? "Refreshing..." : "Refresh Dashboard"} onPress={loadDashboard} variant="secondary" />
-        <PrimaryButton label="Logout" onPress={onLogout} variant="secondary" />
-      </SectionCard>
-
-      <SectionCard title="Dashboard Overview" subtitle="Principal Lecturer quick view">
-        <View style={styles.row}>
-          <InfoCard label="Courses In Stream" value={courses.length} tone="highlight" />
-          <InfoCard label="Reports In View" value={reports.length} />
-        </View>
-        <View style={styles.row}>
-          <InfoCard label="Reviewed Reports" value={reports.filter((item) => item.feedbackStatus === "Reviewed").length} />
-          <InfoCard label="Pending Feedback" value={reports.filter((item) => item.feedbackStatus !== "Reviewed").length} />
-        </View>
-      </SectionCard>
+      <DashboardHeader
+        roleLabel={roleLabels[profile.role]}
+        title="Principal Lecturer Dashboard"
+        subtitle={`${profile.stream || profile.facultyName || "Stream"} - Review reports and monitor classes`}
+        loading={loading}
+        onRefresh={loadDashboard}
+        onLogout={onLogout}
+      />
 
       <View style={styles.row}>
-        <InfoCard label="Stream Courses" value={courses.length} tone="highlight" />
-        <InfoCard label="Reports Reviewed" value={summary.reportsSubmitted} />
+        <DashboardStatCard label="Courses In Stream" value={courses.length} helper="Modules assigned to this stream" />
+        <DashboardStatCard label="Reports In View" value={reports.length} helper="Recent reports loaded" />
       </View>
       <View style={styles.row}>
-        <InfoCard label="Attendance Avg" value={summary.averageAttendance} />
-        <InfoCard label="Rating Avg" value={summary.averageRating} />
+        <DashboardStatCard label="Reviewed Reports" value={reports.filter((item) => item.feedbackStatus === "Reviewed").length} helper="Reports with feedback added" />
+        <DashboardStatCard label="Pending Feedback" value={reports.filter((item) => item.feedbackStatus !== "Reviewed").length} helper="Needs PRL feedback" />
       </View>
+      <View style={styles.row}>
+        <DashboardStatCard label="Attendance Avg" value={summary.averageAttendance} helper="Stream attendance trend" />
+        <DashboardStatCard label="Rating Avg" value={summary.averageRating} helper="Monitoring average" />
+      </View>
+
+      <SectionCard title="Quick Actions">
+        <View style={styles.row}>
+          <DashboardQuickAction label="Review Reports" onPress={() => setMessage("Use the 'Reports' section below to review records.")} />
+          <DashboardQuickAction label="Add Feedback" onPress={() => setMessage("Use 'Add Feedback to Report' section below.")} />
+        </View>
+        <View style={styles.row}>
+          <DashboardQuickAction label="Monitor Classes" onPress={() => setMessage("Use 'Courses' section below for class monitoring.")} />
+          <DashboardQuickAction label="Save Rating" onPress={() => setMessage("Use 'Monitoring and Rating' section below.")} />
+        </View>
+      </SectionCard>
 
       <SectionCard title="Courses">
         <FormInput label="Search Courses" value={courseSearch} placeholder="Search module, class, lecturer, code" onChangeText={setCourseSearch} />
@@ -169,6 +205,8 @@ export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
         </View>
         <FormInput label="Feedback" value={feedbackForm.feedback} placeholder="Write PRL feedback on this report" multiline onChangeText={(value) => setFeedbackForm((current) => ({ ...current, feedback: value }))} />
         <PrimaryButton label="Submit Feedback" onPress={saveFeedback} />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {message ? <Text style={styles.success}>{message}</Text> : null}
       </SectionCard>
 
       <SectionCard title="Monitoring and Rating">
@@ -189,6 +227,7 @@ export default function PrincipalLecturerScreen({ profile, user, onLogout }) {
         <FormInput label="Score (1-5)" value={rating.score} placeholder="5" keyboardType="numeric" onChangeText={(value) => setRating((current) => ({ ...current, score: value }))} />
         <FormInput label="Observation" value={rating.feedback} placeholder="Monitoring notes for this class" multiline onChangeText={(value) => setRating((current) => ({ ...current, feedback: value }))} />
         <PrimaryButton label="Save Rating" onPress={saveRating} />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
         {message ? <Text style={styles.success}>{message}</Text> : null}
       </SectionCard>
     </ScreenContainer>
@@ -247,6 +286,10 @@ const styles = StyleSheet.create({
   },
   success: {
     color: theme.colors.success,
+    fontWeight: "700"
+  },
+  error: {
+    color: theme.colors.danger,
     fontWeight: "700"
   }
 });

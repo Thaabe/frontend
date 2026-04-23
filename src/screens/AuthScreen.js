@@ -1,9 +1,6 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
-import FormInput from "../components/FormInput";
-import PrimaryButton from "../components/PrimaryButton";
-import SectionCard from "../components/SectionCard";
 import { theme } from "../constants/theme";
 import { roles } from "../utils/roles";
 import { useAuth } from "../context/AuthContext";
@@ -53,14 +50,29 @@ export default function AuthScreen() {
 
   return (
     <ScreenContainer>
-      <View style={styles.hero}>
-        <Text style={styles.title}>LUCT Faculty Reporting</Text>
-        <Text style={styles.subtitle}>
-          Track classes, reports, attendance, monitoring, and ratings in one mobile workflow.
+      <View style={styles.topPanel}>
+        <View style={styles.circleOne} />
+        <View style={styles.circleTwo} />
+        <View style={styles.brandRow}>
+          <View style={styles.brandIcon}>
+            <View style={styles.brandDot} />
+          </View>
+          <Text style={styles.brandText}>LUCT - ICT Faculty</Text>
+        </View>
+        <Text style={styles.mainTitle}>Faculty Reporting</Text>
+        <Text style={styles.mainSubtitle}>
+          Track classes, attendance, reports, and ratings.
         </Text>
+        <View style={styles.chipRow}>
+          <View style={styles.chip}><Text style={styles.chipText}>Attendance</Text></View>
+          <View style={styles.chip}><Text style={styles.chipText}>Reports</Text></View>
+          <View style={styles.chip}><Text style={styles.chipText}>Monitorings</Text></View>
+          <View style={styles.chip}><Text style={styles.chipText}>Ratings</Text></View>
+        </View>
       </View>
 
-      <SectionCard title={mode === "login" ? "Welcome back" : "Create account"}>
+      <View style={styles.authCard}>
+        <Text style={styles.welcomeText}>{mode === "login" ? "Welcome back" : "Create account"}</Text>
         <View style={styles.switcher}>
           <Pressable onPress={() => setMode("login")} style={[styles.modeButton, mode === "login" ? styles.modeActive : null]}>
             <Text style={[styles.modeText, mode === "login" ? styles.modeTextActive : null]}>Login</Text>
@@ -71,10 +83,31 @@ export default function AuthScreen() {
         </View>
 
         {mode === "register" ? (
-          <>
-            <FormInput label="Full Name" value={form.fullName} onChangeText={(value) => updateField("fullName", value)} />
-            <FormInput label="Faculty Name" value={form.facultyName} onChangeText={(value) => updateField("facultyName", value)} />
-            <FormInput label="Stream / Department" value={form.stream} onChangeText={(value) => updateField("stream", value)} />
+          <View style={styles.fieldGroup}>
+            <Text style={styles.inputLabel}>Full Name</Text>
+            <TextInput
+              value={form.fullName}
+              onChangeText={(value) => updateField("fullName", value)}
+              placeholder="Your full name"
+              style={styles.input}
+              placeholderTextColor="#8a8a8a"
+            />
+            <Text style={styles.inputLabel}>Faculty Name</Text>
+            <TextInput
+              value={form.facultyName}
+              onChangeText={(value) => updateField("facultyName", value)}
+              placeholder="Faculty name"
+              style={styles.input}
+              placeholderTextColor="#8a8a8a"
+            />
+            <Text style={styles.inputLabel}>Stream / Department</Text>
+            <TextInput
+              value={form.stream}
+              onChangeText={(value) => updateField("stream", value)}
+              placeholder="Stream / department"
+              style={styles.input}
+              placeholderTextColor="#8a8a8a"
+            />
             <Text style={styles.roleLabel}>Select Role</Text>
             <View style={styles.roleGrid}>
               {roles.map((role) => (
@@ -89,55 +122,227 @@ export default function AuthScreen() {
                 </Pressable>
               ))}
             </View>
-          </>
+          </View>
         ) : null}
 
-        <FormInput label="Email" value={form.email} onChangeText={(value) => updateField("email", value)} />
-        <FormInput label="Password" value={form.password} onChangeText={(value) => updateField("password", value)} />
+        <View style={styles.fieldGroup}>
+          <Text style={styles.inputLabel}>Email</Text>
+          <TextInput
+            value={form.email}
+            onChangeText={(value) => updateField("email", value)}
+            placeholder="your@luct.edu.ls"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={styles.input}
+            placeholderTextColor="#8a8a8a"
+          />
+          <Text style={styles.inputLabel}>Password</Text>
+          <TextInput
+            value={form.password}
+            onChangeText={(value) => updateField("password", value)}
+            placeholder="password"
+            secureTextEntry
+            style={styles.input}
+            placeholderTextColor="#8a8a8a"
+          />
+        </View>
+
+        <Pressable style={styles.forgotWrap}>
+          <Text style={styles.forgotText}>Forgot password?</Text>
+        </Pressable>
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <PrimaryButton label={mode === "login" ? "Login" : "Register"} onPress={handleSubmit} loading={loading} />
-      </SectionCard>
+
+        <Pressable style={styles.loginButton} onPress={handleSubmit} disabled={loading}>
+          <Text style={styles.loginButtonText}>{loading ? "Loading..." : mode === "login" ? "Login" : "Register"}</Text>
+        </Pressable>
+
+        <Text style={styles.orText}>or</Text>
+
+        <Pressable style={styles.ssoButton}>
+          <Text style={styles.ssoButtonText}>Continue with SSO</Text>
+        </Pressable>
+      </View>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    backgroundColor: theme.colors.primaryDark,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.lg,
-    gap: theme.spacing.sm
+  topPanel: {
+    backgroundColor: "#154f42",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 18,
+    gap: 10,
+    position: "relative",
+    overflow: "hidden"
   },
-  title: {
+  circleOne: {
+    position: "absolute",
+    right: -18,
+    top: -18,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#2a6a5a"
+  },
+  circleTwo: {
+    position: "absolute",
+    right: 24,
+    bottom: -26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#245f50"
+  },
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  brandIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    backgroundColor: "#2d7a66",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  brandDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#d6f4ea"
+  },
+  brandText: {
+    color: "#e6f7f1",
+    fontSize: 11,
+    fontWeight: "700"
+  },
+  mainTitle: {
     color: theme.colors.white,
-    fontSize: 28,
-    fontWeight: "800"
+    fontSize: 30,
+    fontWeight: "800",
+    marginTop: 2
   },
-  subtitle: {
-    color: "#d1fae5",
-    lineHeight: 22
+  mainSubtitle: {
+    color: "#d4eee6",
+    lineHeight: 20,
+    maxWidth: 220
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4
+  },
+  chip: {
+    borderWidth: 1,
+    borderColor: "#4d8377",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "#2a6a5a"
+  },
+  chipText: {
+    color: "#d9f0ea",
+    fontSize: 11,
+    fontWeight: "600"
+  },
+  authCard: {
+    marginTop: -4,
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#e7e2d9",
+    gap: 10
+  },
+  welcomeText: {
+    fontSize: 18,
+    color: "#111827",
+    fontWeight: "700"
   },
   switcher: {
     flexDirection: "row",
-    backgroundColor: "#f1efe9",
-    borderRadius: theme.radius.md,
-    padding: 4
+    backgroundColor: "#ece9e2",
+    borderRadius: 8,
+    padding: 2
   },
   modeButton: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 8,
     alignItems: "center",
-    borderRadius: theme.radius.sm
+    borderRadius: 6
   },
   modeActive: {
-    backgroundColor: theme.colors.white
+    backgroundColor: "#dcd8cf"
   },
   modeText: {
-    color: theme.colors.muted,
+    color: "#50565f",
     fontWeight: "600"
   },
   modeTextActive: {
-    color: theme.colors.primaryDark
+    color: "#111827"
+  },
+  fieldGroup: {
+    gap: 6
+  },
+  inputLabel: {
+    fontSize: 12,
+    color: "#1f2937",
+    fontWeight: "600",
+    marginTop: 2
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#cacaca",
+    borderRadius: 4,
+    backgroundColor: "#f8f8f8",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: "#111827",
+    fontSize: 13
+  },
+  forgotWrap: {
+    alignSelf: "flex-end"
+  },
+  forgotText: {
+    color: "#22a16f",
+    fontSize: 11,
+    fontWeight: "600"
+  },
+  loginButton: {
+    borderWidth: 1,
+    borderColor: "#8f8f8f",
+    borderRadius: 6,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: "#f7f7f7"
+  },
+  loginButtonText: {
+    color: "#111827",
+    fontWeight: "700",
+    fontSize: 13
+  },
+  orText: {
+    textAlign: "center",
+    color: "#9ca3af",
+    fontSize: 12,
+    fontWeight: "600"
+  },
+  ssoButton: {
+    borderWidth: 1,
+    borderColor: "#8f8f8f",
+    borderRadius: 6,
+    paddingVertical: 10,
+    alignItems: "center",
+    backgroundColor: "#ffffff"
+  },
+  ssoButtonText: {
+    color: "#111827",
+    fontWeight: "700",
+    fontSize: 13
   },
   roleLabel: {
     fontSize: 14,
@@ -170,6 +375,7 @@ const styles = StyleSheet.create({
   },
   error: {
     color: theme.colors.danger,
-    fontWeight: "600"
+    fontWeight: "600",
+    textAlign: "center"
   }
 });
