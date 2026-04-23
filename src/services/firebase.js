@@ -4,7 +4,6 @@ import { getFirestore, connectFirestoreEmulator, initializeFirestore, CACHE_SIZE
 import { Platform } from "react-native";
 import ReactNativeAsyncStorage from "@react-native-async-storage/async-storage";
 
-// Enable debug logging
 const DEBUG = true;
 
 function log(message, type = "INFO") {
@@ -25,7 +24,6 @@ function logError(message, error) {
   }
 }
 
-// Validate Firebase configuration
 function validateFirebaseConfig() {
   log("Validating Firebase configuration...");
   
@@ -65,7 +63,6 @@ function validateFirebaseConfig() {
   return true;
 }
 
-// Debug environment variables
 function debugEnvironment() {
   log("=== Environment Debug Information ===");
   log(`Platform: ${Platform.OS}`);
@@ -73,11 +70,9 @@ function debugEnvironment() {
   log(`Is TV: ${Platform.isTV}`);
   log(`Is Testing: ${Platform.isTesting}`);
   
-  // Check for Expo environment
   const isExpo = typeof Expo !== 'undefined';
   log(`Is Expo: ${isExpo}`);
   
-  // List all EXPO_PUBLIC_FIREBASE environment variables
   const firebaseEnvVars = Object.keys(process.env || {})
     .filter(key => key.includes("FIREBASE"))
     .map(key => ({
@@ -99,7 +94,6 @@ function debugEnvironment() {
   log("=====================================");
 }
 
-// Firebase configuration
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -112,12 +106,10 @@ const firebaseConfig = {
 log("Initializing Firebase client...");
 debugEnvironment();
 
-// Validate config before initialization
 let app;
 try {
   validateFirebaseConfig();
   
-  // Initialize or get existing app
   if (getApps().length) {
     log(`Using existing Firebase app (${getApps().length} app(s) found)`);
     app = getApp();
@@ -131,7 +123,6 @@ try {
   throw error;
 }
 
-// Initialize Auth with persistence
 let authInstance;
 let authInitialized = false;
 
@@ -146,7 +137,6 @@ try {
   } else {
     log("React Native platform detected - setting up persistence");
     
-    // Check if AsyncStorage is available
     if (!ReactNativeAsyncStorage) {
       logError("@react-native-async-storage/async-storage is not available");
       throw new Error("AsyncStorage is required for React Native persistence");
@@ -155,7 +145,6 @@ try {
     log("AsyncStorage is available, configuring persistence...");
     
     try {
-      // Try to initialize auth with persistence
       authInstance = initializeAuth(app, {
         persistence: getReactNativePersistence(ReactNativeAsyncStorage)
       });
@@ -165,14 +154,12 @@ try {
       logError("Failed to initialize auth with persistence", initError);
       log("Falling back to default auth instance");
       
-      // Fallback to default auth
       authInstance = getAuth(app);
       authInitialized = true;
       log("Auth initialized with default settings (no persistence)");
     }
   }
   
-  // Optional: Connect to Auth Emulator for development
   const useEmulator = process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR === "true";
   const emulatorHost = process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST || "localhost";
   const authEmulatorPort = parseInt(process.env.EXPO_PUBLIC_AUTH_EMULATOR_PORT || "9099");
@@ -189,7 +176,6 @@ try {
   
 } catch (authError) {
   logError("Critical error initializing Firebase Auth", authError);
-  // Create a dummy auth instance that throws helpful errors
   authInstance = {
     _isDummy: true,
     currentUser: null,
@@ -205,28 +191,23 @@ try {
   };
 }
 
-// Initialize Firestore with offline persistence
 let dbInstance;
 let firestoreInitialized = false;
 
 try {
   log("Initializing Firebase Firestore...");
   
-  // Initialize Firestore with custom settings for better performance
   const firestoreSettings = {
     cacheSizeBytes: CACHE_SIZE_UNLIMITED,
     ignoreUndefinedProperties: true
   };
   
-  // For React Native, we need to use initializeFirestore
   if (Platform.OS !== "web") {
     log("React Native platform detected - initializing Firestore with offline support");
     dbInstance = initializeFirestore(app, firestoreSettings);
     log("Firestore initialized with custom settings");
     
-    // Enable offline persistence for React Native
     try {
-      // Note: Offline persistence is enabled by default in initializeFirestore for React Native
       log("Offline persistence enabled by default");
     } catch (persistenceError) {
       logError("Failed to enable offline persistence", persistenceError);
@@ -237,7 +218,6 @@ try {
     log("Firestore initialized for web platform");
   }
   
-  // Connect to Firestore Emulator if configured
   const useEmulator = process.env.EXPO_PUBLIC_USE_FIREBASE_EMULATOR === "true";
   const emulatorHost = process.env.EXPO_PUBLIC_FIREBASE_EMULATOR_HOST || "localhost";
   const firestoreEmulatorPort = parseInt(process.env.EXPO_PUBLIC_FIRESTORE_EMULATOR_PORT || "8080");
@@ -255,7 +235,6 @@ try {
   firestoreInitialized = true;
   log("Firestore initialized successfully");
   
-  // Test Firestore connection (optional, can be commented out)
   setTimeout(async () => {
     try {
       log("Testing Firestore connection...");
@@ -270,7 +249,6 @@ try {
 } catch (firestoreError) {
   logError("Failed to initialize Firestore", firestoreError);
   
-  // Create a dummy Firestore instance that throws helpful errors
   dbInstance = {
     _isDummy: true,
     collection: () => {
@@ -282,11 +260,9 @@ try {
   };
 }
 
-// Export with helper functions
 export const auth = authInstance;
 export const db = dbInstance;
 
-// Helper function to check if Firebase is ready
 export const isFirebaseReady = () => {
   const isAuthReady = authInstance && !authInstance._isDummy;
   const isFirestoreReady = dbInstance && !dbInstance._isDummy;
@@ -297,7 +273,6 @@ export const isFirebaseReady = () => {
   return isReady;
 };
 
-// Helper function to get initialization status
 export const getInitializationStatus = () => {
   return {
     authInitialized: authInitialized && !authInstance?._isDummy,
@@ -307,7 +282,6 @@ export const getInitializationStatus = () => {
   };
 };
 
-// Helper function to test Firestore connection
 export const testFirestoreConnection = async () => {
   if (!dbInstance || dbInstance._isDummy) {
     logError("Cannot test connection: Firestore not initialized");
@@ -324,16 +298,13 @@ export const testFirestoreConnection = async () => {
       message: "Connection test"
     };
     
-    // Try to write
     await testCollection.doc(testDocId).set(testData);
     log("Write test successful");
     
-    // Try to read
     const readDoc = await testCollection.doc(testDocId).get();
     if (readDoc.exists) {
       log("Read test successful");
       
-      // Clean up
       await testCollection.doc(testDocId).delete();
       log("Cleanup successful");
       
@@ -347,7 +318,6 @@ export const testFirestoreConnection = async () => {
   }
 };
 
-// Helper function to get current user with error handling
 export const getCurrentUser = () => {
   if (!authInstance || authInstance._isDummy) {
     logError("Cannot get current user: Auth not initialized");
@@ -368,7 +338,6 @@ export const getCurrentUser = () => {
   }
 };
 
-// Log final initialization status
 log("=== Firebase Client Initialization Complete ===");
 log(`Auth Initialized: ${authInitialized && !authInstance?._isDummy}`);
 log(`Firestore Initialized: ${firestoreInitialized && !dbInstance?._isDummy}`);
@@ -376,7 +345,6 @@ log(`Platform: ${Platform.OS}`);
 log(`Ready: ${isFirebaseReady()}`);
 log("===============================================");
 
-// Export a default object with all utilities
 export default {
   auth,
   db,

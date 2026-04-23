@@ -16,7 +16,6 @@ import {
 } from "firebase/firestore";
 import { db, isFirebaseReady, getInitializationStatus } from "./firebase";
 
-// Enable debug logging
 const DEBUG = true;
 
 function log(message, type = "INFO") {
@@ -47,7 +46,6 @@ const collections = {
   classRegistry: "classRegistry"
 };
 
-// Enable offline persistence for Firestore
 let persistenceEnabled = false;
 
 async function enableOfflinePersistence() {
@@ -56,7 +54,7 @@ async function enableOfflinePersistence() {
       log("Attempting to enable offline persistence...");
       await enableIndexedDbPersistence(db);
       persistenceEnabled = true;
-      log("✅ Offline persistence enabled successfully");
+      log(" Offline persistence enabled successfully");
     } catch (err) {
       if (err.code === 'failed-precondition') {
         logError("Offline persistence failed: Multiple tabs open. Persistence can only be enabled in one tab at a time.", err);
@@ -69,7 +67,6 @@ async function enableOfflinePersistence() {
   }
 }
 
-// Call this when the app starts
 if (typeof window !== 'undefined') {
   enableOfflinePersistence().catch(() => {});
 }
@@ -169,7 +166,6 @@ function applyFilters(items, options = {}) {
   });
 }
 
-// Helper function to handle offline errors
 function handleOfflineError(error, operationName) {
   if (error.code === 'unavailable' || error.message?.includes('offline') || error.message?.includes('network')) {
     logError(`Operation "${operationName}" failed due to network/offline issue`, error);
@@ -265,7 +261,6 @@ export async function submitLectureReport(report) {
     const registryId = buildRegistryId(report.className, report.courseCode) || "default_registry";
     log(`Registry ID: ${registryId}`);
 
-    // Save or update class registry
     await setDoc(doc(db, collections.classRegistry, registryId), {
       className: report.className,
       courseCode: report.courseCode,
@@ -324,7 +319,6 @@ export async function getStoredRegisteredStudents(className, courseCode) {
     }
   } catch (error) {
     logError("Failed to get stored registered students", error);
-    // Don't throw for this - it's a non-critical feature
     log(" Continuing with manual entry - auto-fill not available");
     return "";
   }
@@ -605,7 +599,6 @@ export async function getRoleSummary(uid, role, options = {}) {
   }
 }
 
-// Export helper to check Firestore health
 export async function checkFirestoreHealth() {
   log("Checking Firestore health...");
   
@@ -629,7 +622,6 @@ export async function checkFirestoreHealth() {
     
     await getDoc(doc(db, '_health', testDoc.id));
     
-    // Clean up
     await setDoc(doc(db, '_health', testDoc.id), { deleted: true });
     
     log(" Firestore health check passed");
@@ -640,6 +632,5 @@ export async function checkFirestoreHealth() {
   }
 }
 
-// Log initialization
 log("Firestore service module loaded");
 log(`Collections configured: ${Object.keys(collections).join(", ")}`);
