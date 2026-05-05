@@ -19,13 +19,13 @@ function toCsv(rows) {
   return [headers.join(","), ...body].join("\n");
 }
 
-// Check if sharing is available without expo-sharing
+
 async function isSharingAvailable() {
   try {
-    // For Android API 23+, we need to check if we can write to external storage
+    
     if (Platform.OS === 'android') {
       const { Status } = await import('expo-file-system');
-      // Simplified check - assume available on most devices
+     
       return true;
     }
     return true;
@@ -36,19 +36,19 @@ async function isSharingAvailable() {
 
 async function saveAndShareCSV(fileName, csv) {
   try {
-    // Create a unique filename with timestamp
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const fullFileName = `${fileName}_${timestamp}.csv`;
     
-    // Get the document directory path
+   
     const fileUri = FileSystem.documentDirectory + fullFileName;
     
-    // Write the CSV content to the file
+  
     await FileSystem.writeAsStringAsync(fileUri, csv, {
       encoding: FileSystem.EncodingType.UTF8
     });
     
-    // Use React Native's Share API instead of expo-sharing
+   
     try {
       await Share.share({
         title: fileName,
@@ -57,14 +57,14 @@ async function saveAndShareCSV(fileName, csv) {
       });
       return true;
     } catch (shareError) {
-      // If sharing fails, at least show the file path
+  
       Alert.alert(
         "Export Complete",
         `File saved to:\n${fileUri}\n\nYou can access this file through your device's file manager.`,
         [
           { text: "OK", style: "cancel" },
           { text: "Copy Path", onPress: () => {
-            // Copy to clipboard
+       
             if (Platform.OS === 'web') {
               navigator.clipboard.writeText(fileUri);
               Alert.alert("Copied!", "File path copied to clipboard");
@@ -91,7 +91,7 @@ export async function exportRowsToExcel(fileName, rows) {
   try {
     const csv = toCsv(rows);
     
-    // Web platform
+  
     if (Platform.OS === "web" && typeof document !== "undefined") {
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
@@ -106,14 +106,14 @@ export async function exportRowsToExcel(fileName, rows) {
       return true;
     }
     
-    // React Native platform
+    
     if (Platform.OS === "ios" || Platform.OS === "android") {
-      // Save and share the file
+      
       await saveAndShareCSV(fileName, csv);
       return true;
     }
     
-    // Fallback - just show the data
+    
     Alert.alert(
       "Export Data",
       `Data exported successfully! It can be viewed below:\n\n${csv.substring(0, 500)}${csv.length > 500 ? '...' : ''}`,
@@ -134,7 +134,7 @@ export async function exportRowsToExcel(fileName, rows) {
   }
 }
 
-// Alternative function to export as HTML (can be opened in Excel)
+
 export async function exportRowsToHTML(fileName, rows) {
   if (!rows || !rows.length) {
     Alert.alert("No Data", "There are no records to export.");
@@ -142,7 +142,7 @@ export async function exportRowsToHTML(fileName, rows) {
   }
   
   try {
-    // Convert to HTML table for better Excel compatibility
+  
     const headers = Object.keys(rows[0]);
     
     let html = `
@@ -196,7 +196,7 @@ export async function exportRowsToHTML(fileName, rows) {
       return true;
     }
     
-    // For mobile - save and share HTML
+
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const fileUri = FileSystem.documentDirectory + `${fileName}_${timestamp}.html`;
     await FileSystem.writeAsStringAsync(fileUri, html);
@@ -216,7 +216,7 @@ export async function exportRowsToHTML(fileName, rows) {
   }
 }
 
-// Function to export specific columns only
+
 export async function exportRowsWithCustomColumns(fileName, rows, columns) {
   if (!rows || !rows.length) {
     Alert.alert("No Data", "There are no records to export.");
@@ -242,7 +242,7 @@ export async function exportRowsWithCustomColumns(fileName, rows, columns) {
   }
 }
 
-// Simple export that just shows the data (no file system required)
+
 export async function quickExportToClipboard(fileName, rows) {
   if (!rows || !rows.length) {
     Alert.alert("No Data", "There are no records to export.");
@@ -252,14 +252,14 @@ export async function quickExportToClipboard(fileName, rows) {
   try {
     const csv = toCsv(rows);
     
-    // For web
+
     if (Platform.OS === "web" && navigator.clipboard) {
       await navigator.clipboard.writeText(csv);
       Alert.alert("Success", "Data copied to clipboard! You can now paste it into Excel.");
       return true;
     }
     
-    // For mobile - share via message
+
     await Share.share({
       title: fileName,
       message: csv,
