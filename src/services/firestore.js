@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -219,6 +220,33 @@ export async function saveCourse(course) {
   } catch (error) {
     logError(`Failed to save course: ${course.courseCode}`, error);
     handleOfflineError(error, "save course");
+  }
+}
+
+export async function updateCourse(courseId, updates) {
+  log(`Updating course: ${courseId}`);
+  try {
+    await updateDoc(doc(db, collections.courses, courseId), cleanPayload({
+      ...updates,
+      updatedAt: serverTimestamp()
+    }));
+    log(` Course updated successfully: ${courseId}`);
+  } catch (error) {
+    logError(`Failed to update course: ${courseId}`, error);
+    handleOfflineError(error, "update course");
+    throw error;
+  }
+}
+
+export async function deleteCourse(courseId) {
+  log(`Deleting course: ${courseId}`);
+  try {
+    await deleteDoc(doc(db, collections.courses, courseId));
+    log(` Course deleted successfully: ${courseId}`);
+  } catch (error) {
+    logError(`Failed to delete course: ${courseId}`, error);
+    handleOfflineError(error, "delete course");
+    throw error;
   }
 }
 

@@ -1,85 +1,100 @@
-import { Alert, Linking, Platform, Share } from "react-native";
-import * as FileSystem from 'expo-file-system';
+import { Alert, Platform, Share } from "react-native";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 
-function escapeCell(value) {
-  const text = String(value != null ? value : "");
-  if (text.includes(",") || text.includes('"') || text.includes("\n")) {
-    return `"${text.replace(/"/g, '""')}"`;
-  }
-  return text;
+function xmlEscape(value) {
+  return String(value != null ? value : "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
-function toCsv(rows) {
-  if (!rows.length) {
-    return "";
-  }
+function buildExcelXml(rows, title) {
+  const headers = Object.keys(rows[0] || {});
+  const headerCells = headers.map((header) => (
+    `<Cell ss:StyleID="Header"><Data ss:Type="String">${xmlEscape(header)}</Data></Cell>`
+  )).join("");
 
-  const headers = Object.keys(rows[0]);
-  const body = rows.map((row) => headers.map((header) => escapeCell(row[header])).join(","));
-  return [headers.join(","), ...body].join("\n");
+  const dataRows = rows.map((row) => {
+    const cells = headers.map((header) => {
+      const value = row[header];
+      const numberValue = Number(value);
+      const isNumber = value !== "" && value !== null && value !== undefined && Number.isFinite(numberValue);
+      const type = isNumber ? "Number" : "String";
+      const dataValue = isNumber ? numberValue : xmlEscape(value);
+      return `<Cell ss:StyleID="Data"><Data ss:Type="${type}">${dataValue}</Data></Cell>`;
+    }).join("");
+    return `<Row>${cells}</Row>`;
+  }).join("");
+
+  return `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Title>${xmlEscape(title)}</Title>
+  <Created>${new Date().toISOString()}</Created>
+ </DocumentProperties>
+ <Styles>
+  <Style ss:ID="Header">
+   <Font ss:Bold="1" ss:Color="#FFFFFF"/>
+   <Interior ss:Color="#1F5C4A" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="Data">
+   <Alignment ss:Vertical="Center" ss:WrapText="1"/>
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+ </Styles>
+ <Worksheet ss:Name="${xmlEscape(title).substring(0, 30) || "Report"}">
+  <Table>
+   <Row>${headerCells}</Row>
+   ${dataRows}
+  </Table>
+ </Worksheet>
+</Workbook>`;
 }
 
+async function saveAndShareExcel(fileName, rows) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const fullFileName = `${fileName}_${timestamp}.xls`;
+  const fileUri = FileSystem.documentDirectory + fullFileName;
+  const excelXml = buildExcelXml(rows, fileName);
 
-async function isSharingAvailable() {
-  try {
-    
-    if (Platform.OS === 'android') {
-      const { Status } = await import('expo-file-system');
-     
-      return true;
-    }
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
+  await FileSystem.writeAsStringAsync(fileUri, excelXml, {
+    encoding: FileSystem.EncodingType.UTF8
+  });
 
-async function saveAndShareCSV(fileName, csv) {
-  try {
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const fullFileName = `${fileName}_${timestamp}.csv`;
-    
-   
-    const fileUri = FileSystem.documentDirectory + fullFileName;
-    
-  
-    await FileSystem.writeAsStringAsync(fileUri, csv, {
-      encoding: FileSystem.EncodingType.UTF8
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(fileUri, {
+      mimeType: "application/vnd.ms-excel",
+      dialogTitle: `${fileName} export`
     });
-    
-   
-    try {
-      await Share.share({
-        title: fileName,
-        message: `Export file saved to: ${fileUri}\n\nYou can share this file path or open it in a file manager.`,
-        url: fileUri,
-      });
-      return true;
-    } catch (shareError) {
-  
-      Alert.alert(
-        "Export Complete",
-        `File saved to:\n${fileUri}\n\nYou can access this file through your device's file manager.`,
-        [
-          { text: "OK", style: "cancel" },
-          { text: "Copy Path", onPress: () => {
-       
-            if (Platform.OS === 'web') {
-              navigator.clipboard.writeText(fileUri);
-              Alert.alert("Copied!", "File path copied to clipboard");
-            } else {
-              Alert.alert("File Path", fileUri);
-            }
-          }}
-        ]
-      );
-      return true;
-    }
-  } catch (error) {
-    console.error("Error saving file:", error);
-    throw error;
+    return true;
   }
+
+  await Share.share({
+    title: `${fileName}.xls`,
+    message: `Export saved at ${fileUri}`,
+    url: fileUri
+  });
+  return true;
 }
 
 export async function exportRowsToExcel(fileName, rows) {
@@ -89,186 +104,51 @@ export async function exportRowsToExcel(fileName, rows) {
   }
 
   try {
-    const csv = toCsv(rows);
-    
-  
     if (Platform.OS === "web" && typeof document !== "undefined") {
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const excelXml = buildExcelXml(rows, fileName);
+      const blob = new Blob([excelXml], { type: "application/vnd.ms-excel" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${fileName}.csv`;
+      link.download = `${fileName}.xls`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      Alert.alert("Success", "File downloaded successfully!");
+      Alert.alert("Success", "Excel file downloaded successfully.");
       return true;
     }
-    
-    
-    if (Platform.OS === "ios" || Platform.OS === "android") {
-      
-      await saveAndShareCSV(fileName, csv);
-      return true;
-    }
-    
-    
-    Alert.alert(
-      "Export Data",
-      `Data exported successfully! It can be viewed below:\n\n${csv.substring(0, 500)}${csv.length > 500 ? '...' : ''}`,
-      [
-        { text: "OK", style: "cancel" },
-        { text: "Share Data", onPress: () => Share.share({ message: csv }) }
-      ]
-    );
+
+    await saveAndShareExcel(fileName, rows);
+    Alert.alert("Success", "Excel file generated and ready to share.");
     return true;
-    
   } catch (error) {
     console.error("Export error:", error);
-    Alert.alert(
-      "Export Failed", 
-      `Unable to export data: ${error.message}\n\nPlease try again later or take a screenshot.`
-    );
+    Alert.alert("Export Failed", `Unable to export Excel file: ${error.message}`);
     return false;
   }
 }
-
-
-export async function exportRowsToHTML(fileName, rows) {
-  if (!rows || !rows.length) {
-    Alert.alert("No Data", "There are no records to export.");
-    return false;
-  }
-  
-  try {
-  
-    const headers = Object.keys(rows[0]);
-    
-    let html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>${fileName}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          h1 { color: #4CAF50; }
-          th { background-color: #4CAF50; color: white; padding: 12px; }
-          td { padding: 10px; border: 1px solid #ddd; }
-          table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-          tr:nth-child(even) { background-color: #f2f2f2; }
-          tr:hover { background-color: #ddd; }
-        </style>
-      </head>
-      <body>
-        <h1>${fileName}</h1>
-        <p>Generated on: ${new Date().toLocaleString()}</p>
-        <table>
-          <thead>
-            <tr>
-              ${headers.map(h => `<th>${escapeCell(h)}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map(row => `
-              <tr>
-                ${headers.map(h => `<td>${escapeCell(row[h])}</td>`).join('')}
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </body>
-      </html>
-    `;
-    
-    if (Platform.OS === "web") {
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${fileName}.html`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      Alert.alert("Success", "HTML file downloaded successfully!");
-      return true;
-    }
-    
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const fileUri = FileSystem.documentDirectory + `${fileName}_${timestamp}.html`;
-    await FileSystem.writeAsStringAsync(fileUri, html);
-    
-    await Share.share({
-      title: fileName,
-      message: `Export file saved to: ${fileUri}`,
-      url: fileUri,
-    });
-    
-    return true;
-    
-  } catch (error) {
-    console.error("HTML Export error:", error);
-    Alert.alert("Export Failed", `Unable to export as HTML: ${error.message}`);
-    return false;
-  }
-}
-
 
 export async function exportRowsWithCustomColumns(fileName, rows, columns) {
   if (!rows || !rows.length) {
     Alert.alert("No Data", "There are no records to export.");
     return false;
   }
-  
+
   try {
-    const filteredRows = rows.map(row => {
-      const newRow = {};
-      columns.forEach(col => {
-        if (row[col] !== undefined) {
-          newRow[col] = row[col];
+    const filteredRows = rows.map((row) => {
+      const next = {};
+      columns.forEach((column) => {
+        if (row[column] !== undefined) {
+          next[column] = row[column];
         }
       });
-      return newRow;
+      return next;
     });
-    
     return await exportRowsToExcel(fileName, filteredRows);
   } catch (error) {
     console.error("Custom export error:", error);
-    Alert.alert("Export Failed", "Unable to export with custom columns");
-    return false;
-  }
-}
-
-
-export async function quickExportToClipboard(fileName, rows) {
-  if (!rows || !rows.length) {
-    Alert.alert("No Data", "There are no records to export.");
-    return false;
-  }
-  
-  try {
-    const csv = toCsv(rows);
-    
-
-    if (Platform.OS === "web" && navigator.clipboard) {
-      await navigator.clipboard.writeText(csv);
-      Alert.alert("Success", "Data copied to clipboard! You can now paste it into Excel.");
-      return true;
-    }
-    
-
-    await Share.share({
-      title: fileName,
-      message: csv,
-    });
-    return true;
-    
-  } catch (error) {
-    console.error("Quick export error:", error);
-    Alert.alert("Export Failed", "Unable to export data");
+    Alert.alert("Export Failed", "Unable to export selected columns.");
     return false;
   }
 }

@@ -37,6 +37,7 @@ const initialReport = (profile) => ({
 });
 
 export default function LecturerScreen({ profile, user, onLogout }) {
+  const dashboardTabs = ["Classes", "Report Form", "My Reports", "Attendance", "Monitoring"];
   const [summary, setSummary] = useState({
     activeCourses: 0,
     reportsSubmitted: 0,
@@ -55,6 +56,7 @@ export default function LecturerScreen({ profile, user, onLogout }) {
   const [loading, setLoading] = useState(false);
   const [submittingReport, setSubmittingReport] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [activeTab, setActiveTab] = useState("Classes");
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -384,41 +386,23 @@ export default function LecturerScreen({ profile, user, onLogout }) {
     );
   };
 
-  return (
-    <ScreenContainer>
-      <DashboardHeader
-        roleLabel={roleLabels[profile.role]}
-        title="Lecturer Dashboard"
-        subtitle={`${profile.facultyName || "ICT Department"} - Manage your classes and reports`}
-        loading={loading}
-        onRefresh={loadDashboard}
-        onLogout={onLogout}
-      />
-
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.row}>
-          <DashboardStatCard label="Active Classes" value={summary.activeCourses} helper={courses.length ? "Live class list loaded" : "No classes yet"} />
-          <DashboardStatCard label="Reports Submitted" value={summary.reportsSubmitted} helper={myReports.length ? "Latest reports listed" : "No submission yet"} />
-        </View>
-        <View style={styles.row}>
-          <DashboardStatCard label="Attendance Avg" value={summary.averageAttendance} helper="From attendance logs" />
-          <DashboardStatCard label="Rating Avg" value={summary.averageRating} helper="From monitoring scores" />
-        </View>
-
+  const renderActiveTab = () => {
+    if (activeTab === "Classes") {
+      return (
         <SectionCard title="Classes" subtitle="Tap a class to auto-fill form fields and see time.">
-          <FormInput 
-            label="Search Classes / Modules" 
-            value={classSearch} 
-            placeholder="Search class, module, code" 
-            onChangeText={setClassSearch} 
+          <FormInput
+            label="Search Classes / Modules"
+            value={classSearch}
+            placeholder="Search class, module, code"
+            onChangeText={setClassSearch}
           />
           {filteredCourses.length ? filteredCourses.map((course) => (
-            <Pressable 
-              key={course.id} 
+            <Pressable
+              key={course.id}
               style={({ pressed }) => [
                 styles.listItem,
                 pressed && styles.listItemPressed
-              ]} 
+              ]}
               onPress={() => applyCourseToReport(course)}
             >
               <Text style={styles.listTitle}>{course.className || "Class"} - {course.courseName} ({course.courseCode})</Text>
@@ -427,7 +411,11 @@ export default function LecturerScreen({ profile, user, onLogout }) {
             </Pressable>
           )) : <Text style={styles.copy}>No classes found yet.</Text>}
         </SectionCard>
+      );
+    }
 
+    if (activeTab === "Report Form") {
+      return (
         <SectionCard title="Lecturer Reporting Form" subtitle="All fields marked with * are required">
           {renderFormField("Faculty Name", "facultyName", "Faculty of ICT", { required: false })}
           {renderFormField("Class Name", "className", "BCSMY3S2")}
@@ -443,29 +431,33 @@ export default function LecturerScreen({ profile, user, onLogout }) {
           {renderFormField("Topic Taught", "topicTaught", "Topic covered in lecture", { multiline: true, required: false })}
           {renderFormField("Learning Outcomes of the Topic", "learningOutcomes", "What students should learn", { multiline: true, required: false })}
           {renderFormField("Lecturer Recommendations", "recommendations", "Recommendations for improvement", { multiline: true, required: false })}
-          
-          <PrimaryButton 
-            label={submittingReport ? "Submitting..." : "Submit Report"} 
-            onPress={saveReport} 
+
+          <PrimaryButton
+            label={submittingReport ? "Submitting..." : "Submit Report"}
+            onPress={saveReport}
             loading={submittingReport}
             disabled={!isReportValid() || submittingReport}
           />
-          
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {message ? <Text style={styles.success}>{message}</Text> : null}
         </SectionCard>
+      );
+    }
 
+    if (activeTab === "My Reports") {
+      return (
         <SectionCard title="My Recently Submitted Reports">
-          <FormInput 
-            label="Search Reports" 
-            value={reportSearch} 
-            placeholder="Search class, module, week, code" 
-            onChangeText={setReportSearch} 
+          <FormInput
+            label="Search Reports"
+            value={reportSearch}
+            placeholder="Search class, module, week, code"
+            onChangeText={setReportSearch}
           />
-          <PrimaryButton 
-            label="Download Reports (Excel)" 
-            onPress={exportMyReports} 
-            variant="secondary" 
+          <PrimaryButton
+            label="Download Reports (Excel)"
+            onPress={exportMyReports}
+            variant="secondary"
           />
           {filteredReports.length ? filteredReports.map((savedReport) => (
             <View key={savedReport.id} style={styles.reportItem}>
@@ -479,48 +471,91 @@ export default function LecturerScreen({ profile, user, onLogout }) {
             </View>
           )) : <Text style={styles.copy}>No reports matched your search.</Text>}
         </SectionCard>
+      );
+    }
 
+    if (activeTab === "Attendance") {
+      return (
         <SectionCard title="Student Attendance">
-          <FormInput 
-            label="Class Name" 
-            value={attendance.className} 
-            placeholder="BCSMY3S2" 
-            onChangeText={(value) => setAttendance((current) => ({ ...current, className: value }))} 
+          <FormInput
+            label="Class Name"
+            value={attendance.className}
+            placeholder="BCSMY3S2"
+            onChangeText={(value) => setAttendance((current) => ({ ...current, className: value }))}
           />
-          <FormInput 
-            label="Present Count" 
-            value={attendance.presentCount} 
-            placeholder="45" 
-            keyboardType="numeric" 
-            onChangeText={(value) => setAttendance((current) => ({ ...current, presentCount: value }))} 
+          <FormInput
+            label="Present Count"
+            value={attendance.presentCount}
+            placeholder="45"
+            keyboardType="numeric"
+            onChangeText={(value) => setAttendance((current) => ({ ...current, presentCount: value }))}
           />
           <PrimaryButton label="Save Attendance" onPress={saveAttendance} />
         </SectionCard>
+      );
+    }
 
-        <SectionCard title="Monitoring and Rating">
-          <FormInput 
-            label="Class / Course Name" 
-            value={rating.className} 
-            placeholder="Class or course name" 
-            onChangeText={(value) => setRating((current) => ({ ...current, className: value }))} 
-          />
-          <FormInput 
-            label="Score (1-5)" 
-            value={rating.score} 
-            placeholder="4" 
-            keyboardType="numeric" 
-            onChangeText={(value) => setRating((current) => ({ ...current, score: value }))} 
-          />
-          <FormInput 
-            label="Monitoring Notes" 
-            value={rating.feedback} 
-            placeholder="Observations for this class" 
-            multiline 
-            onChangeText={(value) => setRating((current) => ({ ...current, feedback: value }))} 
-          />
-          <PrimaryButton label="Save Monitoring Rating" onPress={saveRating} />
-        </SectionCard>
-      </ScrollView>
+    return (
+      <SectionCard title="Monitoring and Rating">
+        <FormInput
+          label="Class / Course Name"
+          value={rating.className}
+          placeholder="Class or course name"
+          onChangeText={(value) => setRating((current) => ({ ...current, className: value }))}
+        />
+        <FormInput
+          label="Score (1-5)"
+          value={rating.score}
+          placeholder="4"
+          keyboardType="numeric"
+          onChangeText={(value) => setRating((current) => ({ ...current, score: value }))}
+        />
+        <FormInput
+          label="Monitoring Notes"
+          value={rating.feedback}
+          placeholder="Observations for this class"
+          multiline
+          onChangeText={(value) => setRating((current) => ({ ...current, feedback: value }))}
+        />
+        <PrimaryButton label="Save Monitoring Rating" onPress={saveRating} />
+      </SectionCard>
+    );
+  };
+
+  return (
+    <ScreenContainer>
+      <DashboardHeader
+        roleLabel={roleLabels[profile.role]}
+        title="Lecturer Dashboard"
+        subtitle={`${profile.facultyName || "ICT Department"} - Manage your classes and reports`}
+        loading={loading}
+        onRefresh={loadDashboard}
+        onLogout={onLogout}
+      />
+
+      <View style={styles.row}>
+        <DashboardStatCard label="Active Classes" value={summary.activeCourses} helper={courses.length ? "Live class list loaded" : "No classes yet"} />
+        <DashboardStatCard label="Reports Submitted" value={summary.reportsSubmitted} helper={myReports.length ? "Latest reports listed" : "No submission yet"} />
+      </View>
+      <View style={styles.row}>
+        <DashboardStatCard label="Attendance Avg" value={summary.averageAttendance} helper="From attendance logs" />
+        <DashboardStatCard label="Rating Avg" value={summary.averageRating} helper="From monitoring scores" />
+      </View>
+
+      <View style={styles.tabBarWrap}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
+          {dashboardTabs.map((tab) => {
+            const active = tab === activeTab;
+            return (
+              <Pressable key={tab} style={[styles.tabButton, active ? styles.tabButtonActive : null]} onPress={() => setActiveTab(tab)}>
+                <Text style={[styles.tabText, active ? styles.tabTextActive : null]}>{tab}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
+      {renderActiveTab()}
     </ScreenContainer>
   );
 }
@@ -566,6 +601,36 @@ const styles = StyleSheet.create({
   listText: {
     color: theme.colors.text,
     fontSize: 14
+  },
+  tabBarWrap: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.xs
+  },
+  tabBar: {
+    flexDirection: "row",
+    gap: theme.spacing.xs
+  },
+  tabButton: {
+    paddingVertical: 10,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.white
+  },
+  tabButtonActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary
+  },
+  tabText: {
+    color: theme.colors.primaryDark,
+    fontWeight: "700"
+  },
+  tabTextActive: {
+    color: theme.colors.white
   },
   listTextSmall: {
     color: theme.colors.textLight,

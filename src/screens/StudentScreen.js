@@ -22,6 +22,7 @@ function includesText(value, query) {
 }
 
 export default function StudentScreen({ profile, user, onLogout }) {
+  const attendanceTabs = ["Classes", "Attendance", "Monitoring", "Rating", "My Ratings"];
   const [summary, setSummary] = useState({
     activeCourses: 0,
     reportsSubmitted: 0,
@@ -40,6 +41,7 @@ export default function StudentScreen({ profile, user, onLogout }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("Classes");
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -129,6 +131,86 @@ export default function StudentScreen({ profile, user, onLogout }) {
     })));
   };
 
+  const renderActiveTab = () => {
+    if (activeTab === "Classes") {
+      return (
+        <SectionCard title="Classes">
+          <FormInput label="Search Classes / Modules" value={courseSearch} placeholder="Search by class, module, code" onChangeText={setCourseSearch} />
+          {filteredCourses.length ? filteredCourses.map((course) => (
+            <Pressable
+              key={course.id}
+              style={styles.listItem}
+              onPress={() => {
+                setRating((current) => ({ ...current, className: course.className || current.className }));
+              }}
+            >
+              <Text style={styles.listTitle}>{course.className || "Class"} - {course.courseName} ({course.courseCode})</Text>
+              <Text style={styles.listText}>Lecture Time: {course.lectureTime || "TBD"}</Text>
+              <Text style={styles.listText}>Venue: {course.venue || "TBD"}</Text>
+            </Pressable>
+          )) : <Text style={styles.copy}>No classes matched your search.</Text>}
+        </SectionCard>
+      );
+    }
+
+    if (activeTab === "Attendance") {
+      return (
+        <SectionCard title="Attendance (Inserted By Lecturer)">
+          <FormInput label="Search Attendance" value={attendanceSearch} placeholder="Search class or course code" onChangeText={setAttendanceSearch} />
+          {filteredAttendance.length ? filteredAttendance.map((entry) => (
+            <View key={entry.id} style={styles.listItem}>
+              <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
+              <Text style={styles.listText}>Present Count: {entry.presentCount != null ? entry.presentCount : "N/A"}</Text>
+              <Text style={styles.listText}>Recorded By: {entry.submittedByRole || "lecturer"}</Text>
+            </View>
+          )) : <Text style={styles.copy}>No lecturer attendance records matched your search.</Text>}
+        </SectionCard>
+      );
+    }
+
+    if (activeTab === "Monitoring") {
+      return (
+        <SectionCard title="Monitoring (Inserted By Lecturer)">
+          <FormInput label="Search Monitoring" value={monitoringSearch} placeholder="Search class or monitoring notes" onChangeText={setMonitoringSearch} />
+          {filteredMonitoring.length ? filteredMonitoring.map((entry) => (
+            <View key={entry.id} style={styles.listItem}>
+              <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
+              <Text style={styles.listText}>Score: {entry.score != null ? entry.score : "N/A"}</Text>
+              <Text style={styles.listText}>Notes: {entry.feedback || "N/A"}</Text>
+            </View>
+          )) : <Text style={styles.copy}>No lecturer monitoring records matched your search.</Text>}
+        </SectionCard>
+      );
+    }
+
+    if (activeTab === "Rating") {
+      return (
+        <SectionCard title="Rating (Student Input)">
+          <FormInput label="Class Name" value={rating.className} placeholder="Select class above or type class name" onChangeText={(value) => setRating((current) => ({ ...current, className: value }))} />
+          <FormInput label="Score (1-5)" value={rating.score} placeholder="4" keyboardType="numeric" onChangeText={(value) => setRating((current) => ({ ...current, score: value }))} />
+          <FormInput label="Feedback" value={rating.feedback} placeholder="Your class feedback" multiline onChangeText={(value) => setRating((current) => ({ ...current, feedback: value }))} />
+          <PrimaryButton label="Submit Rating" onPress={saveRating} />
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {message ? <Text style={styles.success}>{message}</Text> : null}
+        </SectionCard>
+      );
+    }
+
+    return (
+      <SectionCard title="My Ratings">
+        <FormInput label="Search My Ratings" value={ratingSearch} placeholder="Search class or feedback" onChangeText={setRatingSearch} />
+        <PrimaryButton label="Download My Ratings (Excel)" onPress={exportStudentRatings} variant="secondary" />
+        {filteredMyRatings.length ? filteredMyRatings.map((entry) => (
+          <View key={entry.id} style={styles.listItem}>
+            <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
+            <Text style={styles.listText}>Score: {entry.score != null ? entry.score : "N/A"}</Text>
+            <Text style={styles.listText}>Feedback: {entry.feedback || "N/A"}</Text>
+          </View>
+        )) : <Text style={styles.copy}>No ratings matched your search.</Text>}
+      </SectionCard>
+    );
+  };
+
   return (
     <ScreenContainer>
       <DashboardHeader
@@ -149,65 +231,24 @@ export default function StudentScreen({ profile, user, onLogout }) {
         <DashboardStatCard label="My Logs" value={summary.reportsSubmitted} helper="Recorded activity count" />
       </View>
 
-      <SectionCard title="Classes">
-        <FormInput label="Search Classes / Modules" value={courseSearch} placeholder="Search by class, module, code" onChangeText={setCourseSearch} />
-        {filteredCourses.length ? filteredCourses.map((course) => (
-          <Pressable
-            key={course.id}
-            style={styles.listItem}
-            onPress={() => {
-              setRating((current) => ({ ...current, className: course.className || current.className }));
-            }}
-          >
-            <Text style={styles.listTitle}>{course.className || "Class"} - {course.courseName} ({course.courseCode})</Text>
-            <Text style={styles.listText}>Lecture Time: {course.lectureTime || "TBD"}</Text>
-            <Text style={styles.listText}>Venue: {course.venue || "TBD"}</Text>
-          </Pressable>
-        )) : <Text style={styles.copy}>No classes matched your search.</Text>}
-      </SectionCard>
+      <View style={styles.tabBarWrap}>
+        <View style={styles.tabBar}>
+          {attendanceTabs.map((tab) => {
+            const active = tab === activeTab;
+            return (
+              <Pressable
+                key={tab}
+                style={[styles.tabButton, active ? styles.tabButtonActive : null]}
+                onPress={() => setActiveTab(tab)}
+              >
+                <Text style={[styles.tabText, active ? styles.tabTextActive : null]}>{tab}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
 
-      <SectionCard title="Attendance (Inserted By Lecturer)">
-        <FormInput label="Search Attendance" value={attendanceSearch} placeholder="Search class or course code" onChangeText={setAttendanceSearch} />
-        {filteredAttendance.length ? filteredAttendance.map((entry) => (
-          <View key={entry.id} style={styles.listItem}>
-            <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
-            <Text style={styles.listText}>Present Count: {entry.presentCount != null ? entry.presentCount : "N/A"}</Text>
-            <Text style={styles.listText}>Recorded By: {entry.submittedByRole || "lecturer"}</Text>
-          </View>
-        )) : <Text style={styles.copy}>No lecturer attendance records matched your search.</Text>}
-      </SectionCard>
-
-      <SectionCard title="Monitoring (Inserted By Lecturer)">
-        <FormInput label="Search Monitoring" value={monitoringSearch} placeholder="Search class or monitoring notes" onChangeText={setMonitoringSearch} />
-        {filteredMonitoring.length ? filteredMonitoring.map((entry) => (
-          <View key={entry.id} style={styles.listItem}>
-            <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
-            <Text style={styles.listText}>Score: {entry.score != null ? entry.score : "N/A"}</Text>
-            <Text style={styles.listText}>Notes: {entry.feedback || "N/A"}</Text>
-          </View>
-        )) : <Text style={styles.copy}>No lecturer monitoring records matched your search.</Text>}
-      </SectionCard>
-
-      <SectionCard title="Rating (Student Input)">
-        <FormInput label="Class Name" value={rating.className} placeholder="Select class above or type class name" onChangeText={(value) => setRating((current) => ({ ...current, className: value }))} />
-        <FormInput label="Score (1-5)" value={rating.score} placeholder="4" keyboardType="numeric" onChangeText={(value) => setRating((current) => ({ ...current, score: value }))} />
-        <FormInput label="Feedback" value={rating.feedback} placeholder="Your class feedback" multiline onChangeText={(value) => setRating((current) => ({ ...current, feedback: value }))} />
-        <PrimaryButton label="Submit Rating" onPress={saveRating} />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {message ? <Text style={styles.success}>{message}</Text> : null}
-      </SectionCard>
-
-      <SectionCard title="My Ratings">
-        <FormInput label="Search My Ratings" value={ratingSearch} placeholder="Search class or feedback" onChangeText={setRatingSearch} />
-        <PrimaryButton label="Download My Ratings (Excel)" onPress={exportStudentRatings} variant="secondary" />
-        {filteredMyRatings.length ? filteredMyRatings.map((entry) => (
-          <View key={entry.id} style={styles.listItem}>
-            <Text style={styles.listTitle}>{entry.className || "Class"}</Text>
-            <Text style={styles.listText}>Score: {entry.score != null ? entry.score : "N/A"}</Text>
-            <Text style={styles.listText}>Feedback: {entry.feedback || "N/A"}</Text>
-          </View>
-        )) : <Text style={styles.copy}>No ratings matched your search.</Text>}
-      </SectionCard>
+      {renderActiveTab()}
     </ScreenContainer>
   );
 }
@@ -236,6 +277,37 @@ const styles = StyleSheet.create({
   },
   listText: {
     color: theme.colors.text
+  },
+  tabBarWrap: {
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.xs
+  },
+  tabBar: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing.xs
+  },
+  tabButton: {
+    paddingVertical: 10,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.radius.sm,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.white
+  },
+  tabButtonActive: {
+    borderColor: theme.colors.primary,
+    backgroundColor: theme.colors.primary
+  },
+  tabText: {
+    color: theme.colors.primaryDark,
+    fontWeight: "700"
+  },
+  tabTextActive: {
+    color: theme.colors.white
   },
   success: {
     color: theme.colors.success,
